@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.Public.AlbumMapper">
+
+    <select id="findAll" resultType="com.ty1l.spotify_remake.Entity.Public.Album">
+        SELECT * FROM albums ORDER BY releaseDate DESC
+    </select>
+
+    <select id="findById" parameterType="long" resultType="com.ty1l.spotify_remake.Entity.Public.Album">
+        SELECT * FROM albums WHERE id = #{id}
+    </select>
+
+    <select id="findByArtistId" parameterType="long" resultType="com.ty1l.spotify_remake.Entity.Public.Album">
+        SELECT * FROM albums WHERE artistId = #{artistId} ORDER BY releaseDate DESC
+    </select>
+
+    <select id="findByNameSearch" parameterType="string" resultType="com.ty1l.spotify_remake.Entity.Public.Album">
+        SELECT * FROM albums WHERE name LIKE CONCAT('%', #{name}, '%') ORDER BY releaseDate DESC
+    </select>
+
+    <select id="findByArtistIdAndNameSearch" resultType="com.ty1l.spotify_remake.Entity.Public.Album">
+        SELECT * FROM albums WHERE artistId = #{artistId}
+        <if test="name != null and name != ''">
+            AND name LIKE CONCAT('%', #{name}, '%')
+        </if>
+        ORDER BY releaseDate DESC
+    </select>
+
+    <insert id="insert" parameterType="com.ty1l.spotify_remake.Entity.Public.Album"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO albums (artistId, name, coverUrl, coverNetworkUrl, description, type, releaseDate)
+        VALUES (#{artistId}, #{name}, #{coverUrl}, #{coverNetworkUrl}, #{description}, #{type}, #{releaseDate})
+    </insert>
+
+    <update id="update" parameterType="com.ty1l.spotify_remake.Entity.Public.Album">
+        UPDATE albums
+        <set>
+            <if test="artistId != null">artistId = #{artistId},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="coverUrl != null">coverUrl = #{coverUrl},</if>
+            <if test="coverNetworkUrl != null">coverNetworkUrl = #{coverNetworkUrl},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="releaseDate != null">releaseDate = #{releaseDate},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM albums WHERE id = #{id}
+    </delete>
+
+</mapper>

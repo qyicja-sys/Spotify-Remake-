@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.Public.SongMapper">
+
+    <select id="findAll" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT * FROM songs ORDER BY createdAt DESC
+    </select>
+
+    <select id="findById" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT * FROM songs WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ty1l.spotify_remake.Entity.Public.Song"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO songs (artistId, albumId, title, coverUrl, coverNetworkUrl, fileUrl, duration, external_source, external_id)
+        VALUES (#{artistId}, #{albumId}, #{title}, #{coverUrl}, #{coverNetworkUrl}, #{fileUrl}, #{duration}, #{externalSource}, #{externalId})
+    </insert>
+
+    <update id="update" parameterType="com.ty1l.spotify_remake.Entity.Public.Song">
+        UPDATE songs
+        <set>
+            <if test="artistId != null">artistId = #{artistId},</if>
+            <if test="albumId != null">albumId = #{albumId},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="coverUrl != null">coverUrl = #{coverUrl},</if>
+            <if test="coverNetworkUrl != null">coverNetworkUrl = #{coverNetworkUrl},</if>
+            <if test="fileUrl != null">fileUrl = #{fileUrl},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="externalSource != null">external_source = #{externalSource},</if>
+            <if test="externalId != null">external_id = #{externalId},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="int">
+        DELETE FROM songs WHERE id = #{id}
+    </delete>
+
+    <select id="findByTitle" parameterType="string" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+<!--        //根据标题模糊查询-->
+        SELECT * FROM songs WHERE title LIKE CONCAT('%', #{title}, '%')
+    </select>
+
+    <select id="findByArtistId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT * FROM songs WHERE artistId = #{artistId} ORDER BY createdAt DESC
+    </select>
+
+    <select id="searchWithTitle" resultType="com.ty1l.spotify_remake.Entity.Public.SearchSongVO">
+        SELECT s.id, s.title, s.coverUrl, s.duration,
+               GROUP_CONCAT(
+                 a.name ORDER BY sa.is_main DESC, a.name ASC
+                 SEPARATOR ', '
+               ) AS artistName
+        FROM songs s
+        LEFT JOIN song_artist sa ON s.id = sa.song_id
+        LEFT JOIN artists a ON sa.artist_id = a.id
+        WHERE s.title LIKE CONCAT('%', #{title}, '%')
+        GROUP BY s.id, s.title, s.coverUrl, s.duration
+        LIMIT 10
+    </select>
+
+    <select id="findByExternalId" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT * FROM songs WHERE external_source = #{externalSource} AND external_id = #{externalId} LIMIT 1
+    </select>
+
+    <select id="findByArtistIdWithNames" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.SearchSongVO">
+        SELECT s.id, s.title, s.coverUrl, s.duration, s.albumId,
+               COALESCE(alb.name, '') AS albumName,
+               GROUP_CONCAT(
+                 a.name ORDER BY sa.is_main DESC, a.name ASC
+                 SEPARATOR ', '
+               ) AS artistName
+        FROM songs s
+        INNER JOIN song_artist sa ON s.id = sa.song_id
+        INNER JOIN artists a ON sa.artist_id = a.id
+        LEFT JOIN albums alb ON s.albumId = alb.id
+        WHERE sa.artist_id = #{artistId}
+        GROUP BY s.id, s.title, s.coverUrl, s.duration, s.albumId, alb.name
+        ORDER BY s.createdAt DESC
+    </select>
+
+    <select id="findByAlbumId" parameterType="long" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT * FROM songs WHERE albumId = #{albumId} ORDER BY createdAt ASC
+    </select>
+
+    <update id="updateAlbumIdAndCover">
+        UPDATE songs SET albumId = #{albumId}, coverUrl = #{coverUrl} WHERE id = #{songId}
+    </update>
+
+</mapper>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.User.PlaybackHistoryMapper">
+
+    <!-- 查询用户最近播放的歌手（去重，按最近播放时间排序） -->
+    <select id="selectRecentArtists" resultType="com.ty1l.spotify_remake.Entity.User.RecentArtistVO">
+        SELECT
+            a.id,
+            a.name,
+            a.avatarUrl
+        FROM user_playback_history h
+        INNER JOIN artists a ON a.id = h.artist_id
+        WHERE h.user_id = #{userId}
+        GROUP BY h.artist_id
+        ORDER BY MAX(h.played_at) DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 查询用户最近播放的歌曲（去重，按最近播放时间排序） -->
+    <select id="selectRecentSongs" resultType="com.ty1l.spotify_remake.Entity.User.RecentlyPlayedSongVO">
+        SELECT
+            s.id,
+            s.title,
+            a.name AS artistName,
+            s.coverUrl,
+            s.duration,
+            MAX(h.played_at) AS playedAt
+        FROM user_playback_history h
+        INNER JOIN songs s ON s.id = h.song_id
+        INNER JOIN artists a ON a.id = h.artist_id
+        WHERE h.user_id = #{userId}
+        GROUP BY h.song_id
+        ORDER BY MAX(h.played_at) DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 查询用户关注的艺人数 -->
+    <select id="countFollowing" resultType="int">
+        SELECT COUNT(*) FROM user_artist_follows WHERE user_id = #{userId}
+    </select>
+
+    <!-- 插入播放记录 -->
+    <insert id="insertPlaybackHistory" parameterType="com.ty1l.spotify_remake.Entity.User.UserPlaybackHistory">
+        INSERT INTO user_playback_history (user_id, song_id, artist_id, played_at)
+        VALUES (#{userId}, #{songId}, #{artistId}, #{playedAt})
+    </insert>
+
+    <!-- 查询某艺人本月听众数（去重） -->
+    <select id="countMonthlyListeners" resultType="int">
+        <![CDATA[
+        SELECT COUNT(DISTINCT user_id)
+        FROM user_playback_history
+        WHERE artist_id = #{artistId}
+          AND played_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
+          AND played_at <  DATE_FORMAT(CURRENT_DATE + INTERVAL 1 MONTH, '%Y-%m-01')
+        ]]>
+    </select>
+
+</mapper>

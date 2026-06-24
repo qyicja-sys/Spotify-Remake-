@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.User.mainWebMapper">
+
+    <select id="countUserPlaylists" resultType="int">
+        SELECT COUNT(*) FROM playlists WHERE userId = #{userId}
+    </select>
+
+    <insert id="insertPlaylist" parameterType="com.ty1l.spotify_remake.Entity.User.Playlist"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO playlists (userId, name, profile, type)
+        VALUES (#{userId}, #{name}, '', 0)
+    </insert>
+
+    <!-- 统计用户公开歌单数量（不含已点赞的歌曲） -->
+    <select id="countUserPublicPlaylists" resultType="int">
+        SELECT COUNT(*) FROM playlists WHERE userId = #{userId} AND name != '已点赞的歌曲'
+    </select>
+
+    <!-- 查询用户的公开歌单（不含已点赞的歌曲），带创建者昵称 -->
+    <select id="findPublicPlaylistsByUserId" resultType="com.ty1l.spotify_remake.Entity.User.PlaylistBriefVO">
+        SELECT p.id, p.userId, p.name, p.coverUrl, p.coverNetworkUrl, p.type, p.is_private AS isPrivate, u.nickName AS authorName
+        FROM playlists p
+        LEFT JOIN user u ON p.userId = u.id
+        WHERE p.userId = #{userId} AND p.is_private = 0 AND p.name != '已点赞的歌曲'
+        ORDER BY p.createdAt DESC
+    </select>
+
+</mapper>

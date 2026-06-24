@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.User.CollectedPlaylistMapper">
+
+    <insert id="collect">
+        INSERT IGNORE INTO user_collected_playlists (userId, playlistId) VALUES (#{userId}, #{playlistId})
+    </insert>
+
+    <delete id="uncollect">
+        DELETE FROM user_collected_playlists WHERE userId = #{userId} AND playlistId = #{playlistId}
+    </delete>
+
+    <select id="isCollected" resultType="int">
+        SELECT COUNT(*) FROM user_collected_playlists WHERE userId = #{userId} AND playlistId = #{playlistId}
+    </select>
+
+    <select id="findCollectedPlaylistsByUserId" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT p.id, p.userId, p.name AS title, p.coverUrl, p.coverNetworkUrl, p.backgroundUrl, p.backgroundNetworkUrl, p.profile, p.createdAt, p.type, p.is_private AS isPrivate
+        FROM playlists p
+        INNER JOIN user_collected_playlists ucp ON p.id = ucp.playlistId
+        WHERE ucp.userId = #{userId}
+        ORDER BY ucp.collectedAt DESC
+    </select>
+
+</mapper>

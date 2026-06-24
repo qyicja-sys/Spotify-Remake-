@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.Public.PlaylistMapper">
+
+    <select id="findAll" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT id, userId, name AS title, coverUrl, coverNetworkUrl, backgroundUrl, backgroundNetworkUrl, profile, createdAt, type, is_private AS isPrivate FROM playlists ORDER BY createdAt DESC
+    </select>
+
+    <select id="findByType" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT id, userId, name AS title, coverUrl, coverNetworkUrl, backgroundUrl, backgroundNetworkUrl, profile, createdAt, type, is_private AS isPrivate FROM playlists WHERE type = #{type} ORDER BY createdAt DESC
+    </select>
+
+    <select id="findAllSystem" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT id, userId, name AS title, coverUrl, coverNetworkUrl, backgroundUrl, backgroundNetworkUrl, profile, createdAt, type, is_private AS isPrivate FROM playlists WHERE type IN (1, 2) ORDER BY createdAt DESC
+    </select>
+
+    <select id="findById" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT id, userId, name AS title, coverUrl, coverNetworkUrl, backgroundUrl, backgroundNetworkUrl, profile, createdAt, type, is_private AS isPrivate FROM playlists WHERE id = #{id}
+    </select>
+
+    <select id="findSongsByPlaylistId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT s.id, s.artistId, s.title, s.coverUrl, s.fileUrl, s.duration, s.createdAt,
+               s.external_source AS externalSource, s.external_id AS externalId FROM songs s
+        INNER JOIN playlist_songs ps ON s.id = ps.songId
+        WHERE ps.playlistId = #{playlistId}
+        ORDER BY ps.addedAt ASC
+    </select>
+
+    <select id="findPlaylistSongsByPlaylistId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.User.PlaylistSongVO">
+        SELECT s.id, s.artistId, s.title, s.coverUrl, s.fileUrl, s.duration, s.createdAt, ps.addedAt,
+               s.external_source AS externalSource, s.external_id AS externalId,
+               s.albumId, alb.name AS albumName
+        FROM songs s
+        INNER JOIN playlist_songs ps ON s.id = ps.songId
+        LEFT JOIN albums alb ON s.albumId = alb.id
+        WHERE ps.playlistId = #{playlistId}
+        ORDER BY ps.addedAt ASC
+    </select>
+
+    <insert id="insert" parameterType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO playlists (userId, name, coverUrl, coverNetworkUrl, backgroundUrl, backgroundNetworkUrl, profile, type)
+        VALUES (#{userId}, #{title}, #{coverUrl}, #{coverNetworkUrl}, #{backgroundUrl}, #{backgroundNetworkUrl}, COALESCE(#{profile}, ''), #{type})
+    </insert>
+
+    <update id="update" parameterType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        UPDATE playlists
+        <set>
+            <if test="title != null">name = #{title},</if>
+            <if test="coverUrl != null">coverUrl = #{coverUrl},</if>
+            <if test="coverNetworkUrl != null">coverNetworkUrl = #{coverNetworkUrl},</if>
+            <if test="backgroundUrl != null">backgroundUrl = #{backgroundUrl},</if>
+            <if test="backgroundNetworkUrl != null">backgroundNetworkUrl = #{backgroundNetworkUrl},</if>
+            <if test="profile != null">profile = #{profile},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="isPrivate != null">is_private = #{isPrivate},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="int">
+        DELETE FROM playlists WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteSongsByPlaylistId" parameterType="int">
+        DELETE FROM playlist_songs WHERE playlistId = #{playlistId}
+    </delete>
+
+    <insert id="addSong">
+        INSERT IGNORE INTO playlist_songs (playlistId, songId) VALUES (#{playlistId}, #{songId})
+    </insert>
+
+    <delete id="removeSong">
+        DELETE FROM playlist_songs WHERE playlistId = #{playlistId} AND songId = #{songId}
+    </delete>
+
+    <select id="findLikedPlaylistByUserId" resultType="com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist">
+        SELECT id, userId, name AS title, coverUrl, backgroundUrl, profile, createdAt, type, is_private AS isPrivate
+        FROM playlists WHERE userId = #{userId} AND name = '已点赞的歌曲' LIMIT 1
+    </select>
+
+    <select id="isSongInPlaylist" resultType="int">
+        SELECT COUNT(*) FROM playlist_songs WHERE playlistId = #{playlistId} AND songId = #{songId}
+    </select>
+
+</mapper>

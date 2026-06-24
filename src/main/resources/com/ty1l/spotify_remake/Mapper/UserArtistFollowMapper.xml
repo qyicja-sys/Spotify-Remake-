@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.User.UserArtistFollowMapper">
+
+    <insert id="insert">
+        INSERT IGNORE INTO user_artist_follows (user_id, artist_id)
+        VALUES (#{userId}, #{artistId})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM user_artist_follows
+        WHERE user_id = #{userId} AND artist_id = #{artistId}
+    </delete>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM user_artist_follows
+        WHERE user_id = #{userId} AND artist_id = #{artistId}
+    </select>
+
+    <select id="findFollowedArtists" resultType="com.ty1l.spotify_remake.Entity.Public.Artist">
+        SELECT a.id, a.name, a.fansCount, a.monthlyListeners, a.biography,
+               a.avatarUrl, a.avatarNetworkUrl, a.createdAt
+        FROM user_artist_follows f
+        INNER JOIN artists a ON a.id = f.artist_id
+        WHERE f.user_id = #{userId}
+        ORDER BY f.created_at DESC
+    </select>
+
+    <select id="countFollowersByArtistId" resultType="int">
+        SELECT COUNT(*) FROM user_artist_follows WHERE artist_id = #{artistId}
+    </select>
+
+</mapper>

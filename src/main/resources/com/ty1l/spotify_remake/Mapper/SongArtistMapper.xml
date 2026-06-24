@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.Public.SongArtistMapper">
+
+    <select id="findBySongId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.SongArtist">
+        SELECT song_id AS songId, artist_id AS artistId, is_main AS isMain
+        FROM song_artist
+        WHERE song_id = #{songId}
+    </select>
+
+    <insert id="insert" parameterType="com.ty1l.spotify_remake.Entity.Public.SongArtist">
+        INSERT INTO song_artist (song_id, artist_id, is_main)
+        VALUES (#{songId}, #{artistId}, #{isMain})
+    </insert>
+
+    <delete id="deleteBySongId" parameterType="int">
+        DELETE FROM song_artist WHERE song_id = #{songId}
+    </delete>
+
+</mapper>

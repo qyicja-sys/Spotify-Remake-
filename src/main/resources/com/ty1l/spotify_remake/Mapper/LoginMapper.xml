@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ty1l.spotify_remake.Mapper.User.LoginMapper">
+    <select id="PackageLoginInfo" resultType="com.ty1l.spotify_remake.Entity.User.LoginInfoVo">
+<!--        根据用户名查询用户信息，包装为LoginInfoVo对象-->
+        select * from user where userName = #{userName}
+    </select>
+    <select id="PackageMyPlaylists" resultType="com.ty1l.spotify_remake.Entity.User.PlaylistBriefVO">
+<!--        根据用户ID查询用户歌单，包装为PlaylistBriefVO对象-->
+        select id, userId, name, profile, coverUrl, type, is_private as isPrivate from playlists where userId = #{userId}
+    </select>
+    <select id="PackageSystemPlaylists" resultType="com.ty1l.spotify_remake.Entity.User.PlaylistBriefVO">
+<!--        查询系统歌单（type=1系统推荐, type=2官方精选），包装为PlaylistBriefVO对象-->
+        select id, userId, name, profile, coverUrl, type, is_private as isPrivate from playlists where type IN (1, 2)
+    </select>
+</mapper>

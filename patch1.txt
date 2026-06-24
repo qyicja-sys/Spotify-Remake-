@@ -1,0 +1,109 @@
+﻿*** Begin Patch
+*** Update File: src/main/resources/static/spotify-frontend/src/MainApp.vue
+@@ <template v-if="currentSong">
+-            <!-- 1. 闈㈡澘椤堕儴鏍囬 - 绗竴鑹烘湳瀹跺悕 -->
+-            <div class="side-panel-header">
+-              <span class="side-panel-artist-link" @click="goToArtist">{{ firstArtistName || '鏈煡鑹轰汉' }}</span>
+-            </div>
+-
+-            <!-- 2. 姝屾洸灏侀潰 -->
+-            <div class="side-panel-cover">
+-              <img v-if="currentSong.coverUrl || currentSong.coverNetworkUrl"
+-                   :src="imgUrl(currentSong.coverUrl, currentSong.coverNetworkUrl)"
+-                   :alt="currentSong.title" />
+-              <div v-else class="side-panel-cover-placeholder">
+-                <svg viewBox="0 0 24 24" width="48" height="48" fill="#535353"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
+-              </div>
+-            </div>
+-
+-            <!-- 3. 姝屾洸涓讳俊鎭爮 -->
+-            <div class="side-panel-song-info">
+-              <div class="side-panel-song-details">
+-                <div class="side-panel-song-title">{{ currentSong.title }}</div>
+-                <div class="side-panel-song-artists">{{ currentSong.artist }}</div>
+-              </div>
+-              <button class="side-panel-fav-btn" :class="{ liked: likedSongIds.has(currentSong.id) }" @click.stop="handleLikeSong(currentSong)">
+-                <svg v-if="likedSongIds.has(currentSong.id)" viewBox="0 0 16 16" width="18" height="18">
+-                  <circle cx="8" cy="8" r="8" fill="#1db954"/>
+-                  <path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#121212"/>
+-                </svg>
+-                <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+-                  <path d="M11.999 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18m-11 9c0-6.075 4.925-11 11-11s11 4.925 11 11-4.925 11-11 11-11-4.925-11-11"/>
+-                  <path d="M17.999 12a1 1 0 0 1-1 1h-4v4a1 1 0 1 1-2 0v-4h-4a1 1 0 1 1 0-2h4V7a1 1 0 1 1 2 0v4h4a1 1 0 0 1 1 1"/>
+-                </svg>
+-              </button>
+-            </div>
+-
+-            <!-- 4. "鍏充簬鑹轰汉"鍗＄墖妯″潡 -->
+-            <div class="side-panel-artist-card" v-if="sidePanelArtist || firstArtistName">
+-              <div class="side-panel-artist-card-label">鍏充簬鑹轰汉</div>
+-              <div class="side-panel-artist-card-body">
+-                <img v-if="sidePanelArtist?.avatarUrl || sidePanelArtist?.avatarNetworkUrl"
+-                     :src="imgUrl(sidePanelArtist.avatarUrl, sidePanelArtist.avatarNetworkUrl)"
+-                     :alt="sidePanelArtist.name"
+-                     class="side-panel-artist-avatar"
+-                     @error="$event.target.style.display='none'" />
+-                <div v-else class="side-panel-artist-avatar side-panel-artist-avatar--placeholder">
+-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="#b3b3b3"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
+-                </div>
+-                <div class="side-panel-artist-name">{{ sidePanelArtist?.name || firstArtistName }}</div>
+-                <div class="side-panel-artist-listeners" v-if="sidePanelArtist?.monthlyListeners != null">
+-                  姣忔湀鏈?{{ formatNumber(sidePanelArtist.monthlyListeners) }} 鍚嶅惉浼?                </div>
+-                <button class="side-panel-follow-btn">鍏虫敞</button>
+-              </div>
+-            </div>
++            <!-- 1. 闈㈡澘椤堕儴鏍囬 - 绗竴鑹烘湳瀹跺悕 -->
++            <div class="side-panel-header">
++              <span class="side-panel-artist-link" @click="goToArtist">{{ firstArtistName || '鏈煡鑹轰汉' }}</span>
++            </div>
++
++            <!-- 2. 姝屾洸灏侀潰 -->
++            <div class="side-panel-cover">
++              <img v-if="currentSong.coverUrl || currentSong.coverNetworkUrl"
++                   :src="imgUrl(currentSong.coverUrl, currentSong.coverNetworkUrl)"
++                   :alt="currentSong.title" />
++              <div v-else class="side-panel-cover-placeholder">
++                <svg viewBox="0 0 24 24" width="48" height="48" fill="#535353"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
++              </div>
++            </div>
++
++            <!-- 3. 姝屾洸涓讳俊鎭爮 -->
++            <div class="side-panel-song-info">
++              <div class="side-panel-song-details">
++                <div class="side-panel-song-title">{{ currentSong.title }}</div>
++                <div class="side-panel-song-artists">{{ currentSong.artist }}</div>
++              </div>
++              <button class="side-panel-fav-btn" :class="{ liked: likedSongIds.has(currentSong.id) }" @click.stop="handleLikeSong(currentSong)">
++                <svg v-if="likedSongIds.has(currentSong.id)" viewBox="0 0 16 16" width="18" height="18">
++                  <circle cx="8" cy="8" r="8" fill="#1db954"/>
++                  <path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#121212"/>
++                </svg>
++                <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
++                  <path d="M11.999 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18m-11 9c0-6.075 4.925-11 11-11s11 4.925 11 11-4.925 11-11 11-11-4.925-11-11"/>
++                  <path d="M17.999 12a1 1 0 0 1-1 1h-4v4a1 1 0 1 1-2 0v-4h-4a1 1 0 1 1 0-2h4V7a1 1 0 1 1 2 0v4h4a1 1 0 0 1 1 1"/>
++                </svg>
++              </button>
++            </div>
++
++            <!-- 4. "鍏充簬鑹轰汉"鍗＄墖妯″潡 -->
++            <div class="side-panel-artist-card" v-if="sidePanelArtist || firstArtistName">
++              <div class="side-panel-artist-card-label">鍏充簬鑹轰汉</div>
++              <div class="side-panel-artist-card-inner">
++                <img v-if="sidePanelArtist?.avatarUrl || sidePanelArtist?.avatarNetworkUrl"
++                     :src="imgUrl(sidePanelArtist.avatarUrl, sidePanelArtist.avatarNetworkUrl)"
++                     :alt="sidePanelArtist.name"
++                     class="side-panel-artist-avatar"
++                     @error="$event.target.style.display='none'" />
++                <div v-else class="side-panel-artist-avatar side-panel-artist-avatar--placeholder">
++                  <svg viewBox="0 0 24 24" width="24" height="24" fill="#b3b3b3"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
++                </div>
++                <div class="side-panel-artist-info">
++                  <div class="side-panel-artist-name">{{ sidePanelArtist?.name || firstArtistName }}</div>
++                  <div class="side-panel-artist-listeners" v-if="sidePanelArtist?.monthlyListeners != null">
++                    每月有 {{ formatNumber(sidePanelArtist.monthlyListeners) }} 名听众
++                  </div>
++                </div>
++                <button class="side-panel-follow-btn">关注</button>
++              </div>
++            </div>
+*** End Patch
