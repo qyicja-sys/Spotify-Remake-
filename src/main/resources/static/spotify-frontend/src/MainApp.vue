@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { resolveUrl, imgUrl, getPlaylistDetail, getHome, getStreamUrl, search, searchExternal, searchExternalByArtist, createPlaylist, getProfile, updateNickName, uploadAvatar, registerArtist, uploadSong, searchArtists, getArtistDetail, likeSong, likeExternalSong, unlikeSong, checkLiked, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, editPlaylistDetail, collectPlaylist, uncollectPlaylist, checkPlaylistCollected, togglePlaylistPrivacy, createAlbum, searchMySongs, getArtistAlbums, getAlbumDetail, followArtist, unfollowArtist, checkArtistFollowed, recordExternalPlay, getLocalLyrics, getExternalLyrics } from './api/auth'
 import { getLastSong, setLastSong as saveLastSong } from './utils/storage'
@@ -78,7 +78,7 @@ const likedSongIds = ref(new Set())
 const activeSongMenuId = ref(null)
 const songMenuStyle = ref({})
 
-// 加入歌单子菜单
+// 錪犲&ユ璕鍗"瀛愯廠鍗"
 const showPlaylistSubmenu = ref(false)
 const addToPlaylistSong = ref(null)
 const playlistSearchQuery = ref('')
@@ -122,7 +122,7 @@ const cropCanvasRef = ref(null)
 const editFileInput = ref(null)
 const cropState = ref({ x: 0, y: 0, scale: 1, dragging: false, startX: 0, startY: 0, img: null })
 
-// 裁剪弹框状态
+// 瑁佸0脊妗 鏯舵瑏
 const showCropModal = ref(false)
 const cropModalCanvasRef = ref(null)
 
@@ -335,10 +335,10 @@ async function playSong(song, queue) {
     isPlaying.value = true
     playerVisible.value = true
 
-    // 鎸佷箙鍖栧綋鍓嶆挱鏀炬瓕鏇?
+    // 持久化当前播放记录
     saveLastSong({ ...currentSong.value, currentTime: 0 })
 
-    // 璁板綍宸叉挱鏀炬瓕鏇?
+    // 记录已播放歌曲
     if (!playedList.value.includes(song.id)) {
       playedList.value.push(song.id)
     }
@@ -505,7 +505,7 @@ const volumeEmptyRef = ref(null)
 const volumeThumbRef = ref(null)
 
 function syncVolumeDOM(pct) {
-  // pct: 0~100 鐨勬暟鍊?
+  // pct: 0~100 的数值
   const pctStr = pct + '%'
   if (volumeFillRef.value) volumeFillRef.value.style.width = pctStr
   if (volumeEmptyRef.value) volumeEmptyRef.value.style.width = (100 - pct) + '%'
@@ -549,7 +549,7 @@ function onVolumeMouseDown(e) {
   document.addEventListener('mouseup', onUp)
 }
 
-// touch 浜嬩欢锛堝弬鑰?闊冲害鏉<html锛?
+// touch 事件（参考 音度条<html）
 function onVolumeTouchStart(e) {
   e.preventDefault()
   volumeDragging.value = true
@@ -601,7 +601,7 @@ async function refreshDashboard() {
       collectedPlaylists.value = dashboard.collectedPlaylists || []
       followedArtists.value = dashboard.followedArtists || []
 
-      // 直接通过 getProfile 鑾峰彇鐢ㄦ埛淇℃伅锛堢‘淇濅竴瀹氭湁鏁版嵁锛?
+      // 直接通过 getProfile 获取用户信息（确保一定有数据）
       try {
         const profileRes = await getProfile()
         console.log('[refreshDashboard] profile response:', profileRes)
@@ -611,7 +611,7 @@ async function refreshDashboard() {
           console.log('[refreshDashboard] profilePic raw:', profile.profilePic)
           const resolvedUrl = profile.profilePic ? resolveUrl(profile.profilePic) : ''
           console.log('[refreshDashboard] profilePic resolved:', resolvedUrl)
-          // 淇濈暀宸叉湁鐨勬椂闂存埑锛堝鏋滄湁锛夛紝鍚﹀垯涓嶅姞
+          // 保留已有的时间戳（如果有），否则不加
           if (profilePic.value && profilePic.value.includes('<t=')) {
             // 已有时间戳，保留
           } else {
@@ -665,7 +665,7 @@ async function openPlaylist(playlistId) {
       // 已点赞的歌曲：固定渐变色，所有人一样?
       playlistGradient.value = 'linear-gradient(to bottom, #4c1d95 0%, #121212 100%)'
     } else if (type === 0) {
-      // 鐢ㄦ埛鑷缓姝屽崟锛氭牴鎹ご鍍忎富鑹茶皟鐢熸垚娓愬彉
+      // 用户自建歌单：根据头像主色调生成渐变
       playlistGradient.value = profileBgColor.value
         ? `linear-gradient(to bottom, ${profileBgColor.value} 0%, #121212 100%)`
         : generateGradient()
@@ -701,13 +701,13 @@ async function openArtistDetail(artistId) {
     playedList.value = []
     loadLikedStatus(data?.songs)
 
-    // 妫€鏌ユ槸鍚︽湁澶栭儴姝屾洸锛屽紓姝ヨ幏鍙栧閮ㄥ钩鍙扮殑更多姝屾洸
+    // 检查是否有外部歌曲，异步获取外部平台的更多歌曲
     const artistName = data?.artist?.name
     if (artistName) {
       searchExternalByArtist(artistName).then(extRes => {
         const extTracks = extRes?.data?.data || extRes?.data || []
         if (extTracks.length && artistDetail.value) {
-          // 杩囨护鎺変笌鏈湴姝屾洸鍚屽悕鐨勭粨鏋?
+          // 过滤掉与本地歌曲同名的结果
           const normalizeTitle = (t) => (t || '').toLowerCase().replace(/\s*(?:\(|\[)<explicit(?:\)|\])?|\s*(?:\(|\[)<clean(?:\)|\])?|\s*(?:\(|\[)<remaster(?:ed)?(?:\s*\d{4})?(?:\)|\])?|\s*-\s*explicit|\s*-\s*clean/g, '').replace(/\(feat\.[^)]*\)|\(ft\.[^)]*\)/g, '').replace(/\s*-\s*explicit|\s*-\s*clean/g, '').replace(/[^a-z0-9\s]/g, '').replace(/\\s+/g, ' ').trim();
           const primaryArtist = (a) => ((a || '').split(',')[0] || '').trim().toLowerCase();
           const localKeys = new Set((data?.songs || []).map(s => normalizeTitle(s.title) + '|' + primaryArtist(s.artistName || s.artist)))
@@ -803,7 +803,7 @@ async function handleToggleCollectPlaylist() {
         type: playlistDetail.value.type,
         isPrivate: playlistDetail.value.isPrivate
       })
-      showToastMessage('宸叉坊鍔犲埌闊充箰搴')
+      showToastMessage('已添加到音乐库')
     }
   } catch (e) {
     const msg = e?.response?.data?.msg || e?.message || '操作失败'
@@ -818,13 +818,13 @@ async function handleTogglePrivacy() {
     await togglePlaylistPrivacy(playlistDetail.value.id)
     const newPrivate = playlistDetail.value.isPrivate === 1 ? 0 : 1
     playlistDetail.value.isPrivate = newPrivate
-    // 鍚屾渚ц竟鏍?
+    // 同步右侧面板
     const idx = myPlaylists.value.findIndex(p => p.id === playlistDetail.value.id)
     if (idx !== -1) {
       myPlaylists.value[idx].isPrivate = newPrivate
     }
     showToastMessage(newPrivate === 1 ? '已设为私密' : '已设为公开')
-    // 鍒锋柊涓汉璧勬枡涓殑鍏紑姝屽崟
+    // 刷新个人资料中的公开歌单
     if (profileData.value) {
       const res = await getProfile()
       if (res.data?.code === 200) profileData.value = res.data.data
@@ -869,25 +869,25 @@ function openEditPlaylist() {
 }
 
 function closeEditPlaylist() {
-  // 宸茬粡鍦ㄨ摑鑹叉彁绀虹姸鎬侊紝鍐嶆鐐瑰嚮鐩存帴鍏抽棴
+  // 已经在蓝色提示状态，再次点击直接关闭
   if (editPlaylistError.value) {
     showEditPlaylist.value = false
     editPlaylistError.value = ''
     editPlaylistNameEmpty.value = false
     return
   }
-  // 标题涓虹┖锛岀孩鑹叉秷澶憋紝钃濊壊鍑虹幇
+  // 标题为空，红色消失，蓝色出现
   if (!editPlaylistTitle.value.trim()) {
     editPlaylistNameEmpty.value = true
-    editPlaylistError.value = '点击"保存"浠ュ偍瀛樹綘鎵€浣滃嚭鐨勬洿鏀广€'
+    editPlaylistError.value = '点击"保存"以储存你所作出的更改。'
     return
   }
-  // 鏈夋湭淇濆瓨淇敼锛岃摑鑹叉彁绀?
+  // 有未保存修改，蓝色提示
   const titleChanged = editPlaylistTitle.value.trim() !== editPlaylistOriginalTitle.value
   const profileChanged = editPlaylistProfile.value.trim() !== editPlaylistOriginalProfile.value
   const coverChanged = editPlaylistCoverFile.value !== null
   if (titleChanged || profileChanged || coverChanged) {
-    editPlaylistError.value = '点击"保存"浠ュ偍瀛樹綘鎵€浣滃嚭鐨勬洿鏀广€'
+    editPlaylistError.value = '点击"保存"以储存你所作出的更改。'
     return
   }
   showEditPlaylist.value = false
@@ -929,16 +929,16 @@ async function saveEditPlaylist() {
       editPlaylistProfile.value.trim(),
       editPlaylistCoverFile.value
     )
-    // 閲嶆柊鍔犺浇姝屽崟璇︽儏浠ヨ幏鍙栨湇鍔″櫒绔殑灏侀潰URL
+    // 重新加载歌单详情以获取服务器端的封面URL
     const res = await getPlaylistDetail(playlistDetail.value.id)
     if (res.data?.code === 200 && res.data.data) {
       playlistDetail.value = res.data.data
-      // 封面URL鍔犳椂闂存埑闃叉缂撳瓨
+      // 封面URL加时间戳防止缓存
       if (playlistDetail.value.coverUrl && editPlaylistCoverFile.value) {
         playlistDetail.value.coverUrl = playlistDetail.value.coverUrl + '<t=' + Date.now()
       }
     }
-    // 鍒锋柊渚ц竟鏍忔瓕鍗曞悕鍜屽皝闈?
+    // 刷新侧边栏歌单名称和封面
     const idx = myPlaylists.value.findIndex(p => p.id === playlistDetail.value.id)
     if (idx !== -1) {
       myPlaylists.value[idx].name = editPlaylistTitle.value.trim()
@@ -951,7 +951,7 @@ async function saveEditPlaylist() {
       URL.revokeObjectURL(editPlaylistCoverPreview.value)
     }
     showEditPlaylist.value = false
-    showToastMessage('姝屽崟宸叉洿鏂')
+    showToastMessage('歌单已更新')
   } catch (e) {
     editPlaylistError.value = e?.response?.data?.msg || e?.message || '保存失败'
   } finally {
@@ -977,7 +977,7 @@ function formatAddedAt(dateStr) {
   const y = d.getFullYear()
   const m = d.getMonth() + 1
   const day = d.getDate()
-  return `${y}骞?{m}鏈?{day}鏃
+  return `${y}年${m}月${day}日`
 }
 
 function generateGradient() {
@@ -985,7 +985,7 @@ function generateGradient() {
   const sat = 30 + Math.floor(Math.random() * 30)
   const light1 = 25 + Math.floor(Math.random() * 15)
   const light2 = 12 + Math.floor(Math.random() * 10)
-  return linear-gradient(to bottom, hsl(${hue}, ${sat}%, ${light1}%) 0%, #121212 100%)`;
+  return `linear-gradient(to bottom, hsl(${hue}, ${sat}%, ${light1}%) 0%, #121212 100%)`;
 }
 
 function getPlaylistBgStyle() {
@@ -1004,16 +1004,16 @@ function getPlaylistBgStyle() {
 }
 
 function formatTotalDuration(seconds) {
-  if (!seconds) return '约?分钟'
+  if (!seconds) return '约0分钟'
   const minutes = Math.round(seconds / 60)
-  return `约?{minutes}分钟`
+  return `约${minutes}分钟`
 }
 
 function goToArtist() {
   if (sidePanelArtist.value?.id) {
     openArtistDetail(sidePanelArtist.value.id)
   } else if (firstArtistName.value) {
-    // 娌℃湁鎵惧埌绮剧‘鍖归厤鐨勮壓浜猴紝灏濊瘯鎼滅储鍚庤烦杞?
+    // 没有找到精确匹配的艺人，尝试搜索后跳转
     searchArtists(firstArtistName.value).then(res => {
       const artists = res?.data?.data || res?.data || []
       if (artists.length) {
@@ -1050,7 +1050,7 @@ async function handleNavClick(page) {
     console.log('[handleNavClick] refreshDashboard done, profilePic:', profilePic.value)
     return
   }
-  const labels = { browse: '浏览', notification: '通知', contacts: '联系人' }
+  const labels = { browse: '浏览', notification: '通知', contacts: '联系人' }
   alert(`进入${labels[page]}页面`)
 }
 
@@ -1074,7 +1074,7 @@ function onSearchInput() {
     const seq = ++searchSeq
     const kw = keyword
 
-    // 鏈湴鎼滅储锛堝揩閫燂紝~200ms锛?
+    // 本地搜索（快速，~200ms
     search(kw).then(res => {
       if (seq !== searchSeq) return
       if (res.data?.code === 200 && res.data.data) {
@@ -1101,7 +1101,7 @@ function onSearchInput() {
       }
       showSearchDropdown.value = true
     }).catch(() => {
-      // 鏈湴鎼滅储澶辫触锛屾竻绌烘湰鍦扮粨鏋?
+      // 本地搜索失败，清空本地结果
       if (seq !== searchSeq) return
       searchResults.value = { ...searchResults.value, songs: [], artists: [] }
       followedArtistIds.value = new Set()
@@ -1110,13 +1110,13 @@ function onSearchInput() {
       searchLoading.value = false
     })
 
-    // 澶栭儴鎼滅储锛堟參锛?-5s锛?
+    // 外部搜索（慢，1-5s）
     searchExternal(kw).then(res => {
       if (seq !== searchSeq) return
       if (res.data?.code === 200 && res.data.data) {
         searchResults.value = { ...searchResults.value, external: res.data.data }
       }
-      // 澶栭儴鏃犵粨鏋滄椂涓嶆竻绌<external（保留旧结果，因为可能是相关的）
+      // 外部无结果时不清空external（保留旧结果，因为可能是相关的）
       showSearchDropdown.value = true
     }).catch(() => {
       // 外部搜索失败，保留旧结果
@@ -1228,7 +1228,7 @@ async function submitRegisterArtist() {
   try {
     await registerArtist(name)
     showRegisterArtist.value = false
-    // 刷新个人主页数据
+    // 迤锋颁釜浜轰富椤垫"版嵁
     const res = await getProfile()
     if (res.data?.data) {
       profileData.value = res.data.data
@@ -1291,7 +1291,7 @@ function clearMusic() {
   uploadMusicDuration.value = null
 }
 
-// 鑱斿悕鑹烘湳瀹舵悳绱?
+// 联名艺术家搜索
 function onFeaturedSearchInput() {
   clearTimeout(featuredSearchTimer)
   const keyword = featuredSearchQuery.value.trim()
@@ -1304,7 +1304,7 @@ function onFeaturedSearchInput() {
     try {
       const res = await searchArtists(keyword)
       const all = res?.data?.data || res?.data || []
-      // 排除当前用户自己（主艺术家）和已选中的?
+      // 排除当前用户自己（主艺术家）和已选中的艺术家
       const profileNick = profileData.value?.nickName || ''
       featuredSearchResults.value = all.filter(a =>
         a.name !== profileNick && !selectedFeaturedArtists.value.some(s => s.id === a.id)
@@ -1355,7 +1355,7 @@ async function submitUploadSong() {
   }
 }
 
-// 鈹€鈹€ 创建专辑 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// —— 创建专辑 ——
 
 function openCreateAlbum() {
   showProfileMoreMenu.value = false
@@ -1403,7 +1403,7 @@ function onAlbumSongSearch() {
     try {
       const res = await searchMySongs(keyword)
       const all = res?.data?.data || res?.data || []
-      // 鎺掗櫎宸插湪宸查€夊垪琛ㄤ腑鐨?
+      // 排除已在已选列表中的
       const existingIds = new Set(albumExistingSongs.value.map(s => s.id))
       albumSongSearchResults.value = all.filter(s => !existingIds.has(s.id))
     } catch {
@@ -1450,7 +1450,7 @@ function onAlbumNewSongsSelect(e) {
     const idx = albumNewSongFiles.value.length
     albumNewSongFiles.value.push(file)
 
-    // 榛樿标题 = 文件名去掉扩展名
+    // 默认标题 = 文件名去掉扩展名
     const dotIdx = file.name.lastIndexOf('.')
     const defaultTitle = dotIdx > 0 ? file.name.substring(0, dotIdx) : file.name
 
@@ -1462,7 +1462,7 @@ function onAlbumNewSongsSelect(e) {
     meta.duration = duration
   })
 
-  // 清空 input 浠ヤ究閲嶅閫夋嫨鍚屼竴鏂囦欢
+  // 清空 input 以便重复选择同一文件
   e.target.value = ''
 }
 
@@ -1506,7 +1506,7 @@ async function submitCreateAlbum() {
       formData.append('existingSongIds', String(s.id))
     })
 
-    // 鏂版瓕鏇叉枃浠跺拰标题
+    // 新歌曲文件和标题
     albumNewSongFiles.value.forEach(file => {
       formData.append('newSongFiles', file)
     })
@@ -1514,13 +1514,13 @@ async function submitCreateAlbum() {
       formData.append('newSongTitles', meta.title)
     })
 
-    // 鏂版瓕鏇叉椂闀<JSON 数组
+    // 新歌曲时长JSON 数组
     const durations = albumNewSongMeta.value.map(meta => meta.duration ?? null)
     formData.append('newSongDurations', JSON.stringify(durations))
 
     await createAlbum(formData)
     showCreateAlbum.value = false
-    // 刷新 profile 鏁版嵁鍜屼笓杈戝垪琛?
+    // 刷新 profile 数据和专辑列表
     try {
       const res = await getProfile()
       profileData.value = res?.data?.data || res?.data
@@ -1571,7 +1571,7 @@ function onEditAvatarSelect(e) {
     img.onload = () => {
       cropState.value.img = img
       initCropPosition(img)
-      // 鎵撳紑瑁佸壀寮规
+      // 打开裁剪弹框
       showCropModal.value = true
       nextTick(() => waitForCropModalCanvasAndDraw())
     }
@@ -1736,7 +1736,7 @@ function onCropWheel(e) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const newScale = Math.max(0.5, Math.min(5, cropState.value.scale + delta))
-  // 浠ョ敾甯冧腑蹇冧负缂╂斁涓績
+  // 以画布中心为缩放中心
   const size = 200
   const cx = size / 2
   const cy = size / 2
@@ -1747,7 +1747,7 @@ function onCropWheel(e) {
   drawCropCanvas()
 }
 
-// 瑁佸壀寮规浜嬩欢澶勭悊
+// 裁剪弹框事件处理
 function onCropModalMouseDown(e) {
   if (!cropState.value.img) return
   cropState.value.dragging = true
@@ -1776,7 +1776,7 @@ function onCropModalWheel(e) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const newScale = Math.max(0.5, Math.min(5, cropState.value.scale + delta))
-  // 浠ョ敾甯冧腑蹇冧负缂╂斁涓績
+  // 以画布中心为缩放中心
   const size = 320
   const cx = size / 2
   const cy = size / 2
@@ -1789,7 +1789,7 @@ function onCropModalWheel(e) {
 
 function confirmCrop() {
   showCropModal.value = false
-  // 鏇存柊缂栬緫寮规涓殑棰勮
+  // 更新编辑弹框中的预览
   if (cropModalCanvasRef.value) {
     editAvatarPreview.value = cropModalCanvasRef.value.toDataURL('image/jpeg', 0.9)
   }
@@ -1804,9 +1804,9 @@ function cancelCrop() {
 
 function getCroppedBlob() {
   return new Promise((resolve) => {
-    // 濡傛灉鏈夎鍓瑙堝浘锛岀洿鎺ヤ粠棰勮鍥惧垱寤<blob
+    // 如果有裁剪预览图，直接从预览图创建blob
     if (editAvatarPreview.value) {
-      // 浠<base64 瀛楃涓插垱寤<blob
+      // 从base64字符串创建blob
       const byteString = atob(editAvatarPreview.value.split(',')[1])
       const mimeString = editAvatarPreview.value.split(',')[0].split(':')[1].split(';')[0]
       const ab = new ArrayBuffer(byteString.length)
@@ -1818,13 +1818,13 @@ function getCroppedBlob() {
       return
     }
 
-    // 濡傛灉娌℃湁棰勮鍥撅紝灏濊瘯浠<canvas 鑾峰彇锛堝吋瀹规棫閫昏緫锛?
+    // 如果没有预览图，尝试从canvas获取（兼容旧逻辑）
     const canvas = cropModalCanvasRef.value || cropCanvasRef.value
     if (!canvas || !cropState.value.img) {
       resolve(null)
       return
     }
-    // 浠庤鍓敾甯冩彁鍙栧渾褰㈠尯鍩熶负姝ｆ柟褰<PNG
+    // 从裁剪画布提取圆形区域为正方形PNG
     const size = canvas.width
     const outCanvas = document.createElement('canvas')
     outCanvas.width = size
@@ -1865,7 +1865,7 @@ async function saveEditProfile() {
       }
     }
 
-    // 閲嶆柊鑾峰彇鏈€鏂扮殑涓汉璧勬枡
+    // 重新获取最新的个人资料
     console.log('[saveEditProfile] 获取最新个人资料')
     const profileRes = await getProfile()
     console.log('[saveEditProfile] profileRes:', profileRes)
@@ -1884,14 +1884,14 @@ async function saveEditProfile() {
       console.log('[saveEditProfile] profilePic updated:', profilePic.value)
     }
 
-    // 鍒锋柊涓婚〉鏁版嵁锛堟洿鏂板鑸爮澶村儚绛夛級
+    // 刷新主页数据（更新导航栏头像等）
     console.log('[saveEditProfile] 刷新主页数据')
     await refreshDashboard()
 
     showEditProfile.value = false
     console.log('[saveEditProfile] 保存完成')
   } catch (e) {
-    console.error('淇濆瓨涓汉璧勬枡澶辫触:', e)
+    console.error('保存个人资料失败:', e)
   } finally {
     editSaving.value = false
   }
@@ -1912,7 +1912,7 @@ async function openProfile() {
     const res = await getProfile()
     if (res.data?.code === 200) {
       profileData.value = res.data.data
-      // 鎻愬彇澶村儚涓昏壊璋?
+      // 提取头像主色调
       const picUrl = resolveUrl(res.data.data.profilePic)
       if (picUrl) {
         extractDominantColor(picUrl).then(color => {
@@ -1929,7 +1929,7 @@ async function openProfile() {
       currentView.value = 'profile'
     }
   } catch (e) {
-    console.error('鑾峰彇涓汉璧勬枡澶辫触:', e)
+    console.error('获取个人资料失败:', e)
   }
 }
 
@@ -1987,7 +1987,7 @@ async function handleCreatePlaylist() {
       }
       currentView.value = 'playlist'
       playlistGradient.value = ''
-      showToastMessage('宸插垱寤烘瓕鍗')
+      showToastMessage('已创建歌单')
     }
   } catch (e) {
     console.error('创建歌单失败:', e)
@@ -2085,7 +2085,7 @@ function playExternalSongFromPlaylist(song, queue) {
 
   saveLastSong({ ...currentSong.value, currentTime: 0 })
 
-  // 璁板綍澶栭儴姝屾洸鎾斁鍘嗗彶
+  // 记录外部歌曲播放历史
   try { recordExternalPlay({ source: song.externalSource, externalId: song.externalId, title: song.title, artistName: song.artistName, coverUrl: song.coverUrl, coverNetworkUrl: song.coverNetworkUrl, duration: song.duration, picId: song.picId }).catch(() => {}) } catch {}
 }
 
@@ -2135,7 +2135,7 @@ function playExternalTrack(track, fromQueue = false) {
     currentIndex.value = externalQueue.findIndex(t => t.id === track.externalId)
     playedList.value = []
   } else {
-    // 浠庨槦鍒楄皟鐢紝鏇存柊 currentIndex
+    // 从队列调用，更新currentIndex
     currentIndex.value = playQueue.value.findIndex(t => t.id === track.externalId)
   }
 
@@ -2158,7 +2158,7 @@ function playExternalTrack(track, fromQueue = false) {
   // 鎸佷箙鍖栧綋鍓嶆挱鏀炬瓕鏇?
   saveLastSong({ ...currentSong.value, currentTime: 0 })
 
-  // 璁板綍澶栭儴姝屾洸鎾斁鍘嗗彶
+  // 记录外部歌曲播放历史
   try { recordExternalPlay({ source: track.source, externalId: track.externalId, title: track.title, artistName: track.artistName, coverUrl: track.coverUrl, duration: track.duration, picId: track.picId }).catch(() => {}) } catch {}
 
   showSearchDropdown.value = false
@@ -2174,8 +2174,8 @@ async function handleLikeSong(song) {
     // 已收藏，取消收藏
     try {
       if (song.isExternal) {
-        // 澶栭儴姝屾洸鍙栨秷鏀惰棌锛氶渶瑕佹壘鍒板疄闄<DB 涓殑 song ID
-        // 鏆傛椂璺宠繃锛屽悗缁彲閫氳繃鍚庣鎺ュ彛鏀寔
+        // 外部歌曲取消收藏：需要找到实际DB中的song ID
+        // 暂时跳过，后续可通过后端接口支持
         showToastMessage('外部歌曲暂不支持取消收藏')
         return
       }
@@ -2225,7 +2225,7 @@ async function handleLikeExternalTrack(track) {
   }
 }
 
-// 姝屾洸更多鑿滃崟
+// 濮濆本娲告:村钴块挎粧宕x
 function toggleSongMenu(song, event) {
   if (activeSongMenuId.value === song.id) {
     closeSongMenu()
@@ -2473,7 +2473,7 @@ async function handleAddToQueue(song) {
     })
     showToastMessage('已加入播放队列')
   } else {
-    showToastMessage('姝屾洸宸插湪闃熷垪涓')
+    showToastMessage('歌曲已在队列中')
   }
 }
 
@@ -2531,7 +2531,7 @@ async function handleRemoveFromPlaylist(song) {
   }
 }
 
-// 鎵撳紑姝屽崟鏃跺姞杞芥敹钘忕姸鎬?
+// 打开歌单时加载收藏状态
 async function loadLikedStatus(songs) {
   if (!songs || songs.length === 0) return
   const ids = new Set()
@@ -2603,20 +2603,20 @@ function scrollLeft() {
 }
 
 onMounted(async () => {
-  // 淇濆瓨鍙充晶闈㈡澘鍒濆鐘舵€佸埌 localStorage
+  // 保存右侧面板初始状态到localStorage
   localStorage.setItem('spotify_side_panel_open', showSidePanel.value)
   localStorage.setItem('spotify_side_panel_width', sideWidth.value)
-  // 鏈櫥褰曞垯璺冲洖鐧诲綍椤?
+  // 未登录则跳回登录页
   if (!sessionStorage.getItem('jwt')) {
     window.location.href = '/spotify-frontend/'
     return
   }
-  // 鎭㈠褰撳墠椤甸潰鐘舵€'
+  // 恢复当前页面状态
   const savedView = sessionStorage.getItem('currentView')
   if (savedView) {
     currentView.value = savedView
   }
-  // 鎭㈠涓婃鎾斁鐨勬瓕鏇诧紙浠呭厓鏁版嵁锛屼笉鑷姩鎾斁锛?
+  // 恢复上次播放的歌曲（仅元数据，不自动播放）
   const lastSong = getLastSong()
   if (lastSong) {
     restoredSongId.value = lastSong.id
@@ -2627,7 +2627,7 @@ onMounted(async () => {
   }
   // 浠庢湇鍔″櫒鑾峰彇鏈€鏂版暟鎹?
   await refreshDashboard()
-  // 濡傛灉褰撳墠鏄釜浜鸿祫鏂欓〉闈紝鍔犺浇 profileData
+  // 如果是个人资料页面，加载profileData
   if (currentView.value === 'profile') {
     try {
       const res = await getProfile()
@@ -2648,7 +2648,7 @@ onMounted(async () => {
         }
       }
     } catch (e) {
-      console.error('鑾峰彇涓汉璧勬枡澶辫触:', e)
+      console.error('获取个人资料失败:', e)
     }
   }
   nextTick(() => checkScrollOverflow())
@@ -2713,7 +2713,7 @@ onMounted(() => {
   // 椤甸潰鍏抽棴鍓嶄繚瀛樻挱鏀捐繘搴?
   window.addEventListener('beforeunload', savePlaybackState)
 
-  // 鍒濆鍖栭煶閲忔潯 DOM锛堝弬鑰?闊冲害鏉<html锛岀洿鎺ユ搷浣<DOM锛?
+  // 初始化音量条DOM（参考音量条html，直接操作DOM）
   nextTick(() => {
     syncVolumeDOM(volume.value * 100)
   })
@@ -2750,7 +2750,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="header-center">
-        <button class="btn-circle" :class="{ active: activeNav === 'home' }" @click="handleNavClick('home')" @mouseenter="e => showTooltip(e, '涓婚〉闈')" @mouseleave="hideTooltip">
+        <button class="btn-circle" :class="{ active: activeNav === 'home' }" @click="handleNavClick('home')" @mouseenter="e => showTooltip(e, '主页')" @mouseleave="hideTooltip">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h4.5v-6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v6H20V7.577zm-2-1.732a3 3 0 0 1 3 0l7.5 4.33a2 2 0 0 1 1 1.732V21a1 1 0 0 1-1 1h-6.5a1 1 0 0 1-1-1v-6h-3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.577a2 2 0 0 1 1-1.732z"/></svg>
         </button>
         <div class="search-bar" v-click-outside="closeSearchDropdown">
@@ -2762,7 +2762,7 @@ onBeforeUnmount(() => {
           </div>
           <!-- 搜索下拉 -->
           <div v-if="showSearchDropdown" class="search-dropdown">
-            <div v-if="searchLoading || externalLoading" class="search-dropdown-empty">鎼滅储涓..'</div>
+            <div v-if="searchLoading || externalLoading" class="search-dropdown-empty">搜索中...</div>
             <template v-else-if="hasSearchResults()">
               <div v-if="searchResults.songs.length" class="search-section">
                 <div class="search-section-title">歌曲</div>
@@ -3426,7 +3426,7 @@ onBeforeUnmount(() => {
                     <div class="menu-left">
                       <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
                       <svg v-else viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
-                      <span>{{ likedSongIds.has(song.id) ? '绉婚櫎鍑哄凡鐐硅禐鐨勬瓕鏇' : '收藏至你已点赞的歌曲' }}</span>
+                      <span>{{ likedSongIds.has(song.id) ? '从已点赞的歌曲中移除' : '收藏至你已点赞的歌曲' }}</span>
                     </div>
                   </div>
                   <div class="song-popup-menu-item" @click="handleAddToQueue(song)">
@@ -3484,7 +3484,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else-if="currentView === 'playlist' && loadingPlaylist" class="playlist-loading">
-          鍔犺浇涓..'
+          加载中...
         </div>
 
         <!-- Album Detail View -->
@@ -3510,7 +3510,7 @@ onBeforeUnmount(() => {
                   <span class="playlist-brand-name">{{ albumDetail.artist?.name || '未知艺术家' }}</span>
                 </div>
                 <div class="playlist-meta">
-                  <span>{{ albumDetail.songs?.length || 0 }}棣栨瓕鏇</span>
+                  <span>{{ albumDetail.songs?.length || 0 }}首歌曲</span>
                   <span class="meta-dot">鈥</span>
                   <span>约{{ Math.round((albumDetail.songs?.reduce((sum, s) => sum + (s.duration || 0), 0) || 0) / 60) }}分钟</span>
                 </div>
@@ -3630,7 +3630,7 @@ onBeforeUnmount(() => {
                     <div class="menu-left">
                       <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
                       <svg v-else viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
-                      <span>{{ likedSongIds.has(song.id) ? '绉婚櫎鍑哄凡鐐硅禐鐨勬瓕鏇' : '收藏至你已点赞的歌曲' }}</span>
+                      <span>{{ likedSongIds.has(song.id) ? '从已点赞的歌曲中移除' : '收藏至你已点赞的歌曲' }}</span>
                     </div>
                   </div>
                   <div class="song-popup-menu-item" @click="handleAddToQueue(song)">
@@ -3675,7 +3675,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else-if="currentView === 'album' && loadingAlbum" class="playlist-loading">
-          鍔犺浇涓..'
+          加载中...
         </div>
 
         <!-- Artist Detail View -->
@@ -3688,9 +3688,9 @@ onBeforeUnmount(() => {
                 <svg v-else viewBox="0 0 24 24" width="80" height="80" fill="#b3b3b3"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
               </div>
               <div class="artist-info">
-                <span class="artist-type-label">鑹烘湳瀹</span>
+                <span class="artist-type-label">艺术家</span>
                 <h1 class="artist-name">{{ firstArtist(artistDetail.artist?.name) }}</h1>
-                <div class="artist-meta">{{ artistDetail.songs?.length || 0 }} 棣栨瓕鏇?路 姣忔湀鏈?{{ formatNumber(artistDetail.monthlyListeners) }} 鍚嶅惉浼</div>
+                <div class="artist-meta">{{ artistDetail.songs?.length || 0 }} 首歌曲 · 每月有{{ formatNumber(artistDetail.monthlyListeners) }}名听众</div>
               </div>
             </div>
             <div class="playlist-actions">
@@ -3793,7 +3793,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else-if="currentView === 'artist' && loadingArtist" class="playlist-loading">
-          鍔犺浇涓..'
+          加载中...
         </div>
 
         <!-- Home View -->
@@ -4016,7 +4016,7 @@ onBeforeUnmount(() => {
                 <div class="side-panel-artist-name">{{ sidePanelArtist?.name || firstArtistName }}</div>
                 <div class="side-panel-artist-meta-row">
                   <div class="side-panel-artist-listeners" v-if="sidePanelArtist?.monthlyListeners != null">
-                    姣忔湀鏈?{{ formatNumber(sidePanelArtist.monthlyListeners) }} 鍚嶅惉浼'
+                    每月有{{ formatNumber(sidePanelArtist.monthlyListeners) }}名听众
                   </div>
                   <button class="side-panel-follow-btn">关注</button>
                 </div>
@@ -4068,7 +4068,7 @@ onBeforeUnmount(() => {
                 <div class="menu-left">
                   <svg v-if="likedSongIds.has(currentSong.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
                   <svg v-else viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
-                  <span>{{ likedSongIds.has(currentSong.id) ? '绉婚櫎鍑哄凡鐐硅禐鐨勬瓕鏇' : '收藏至你已点赞的歌曲' }}</span>
+                  <span>{{ likedSongIds.has(currentSong.id) ? '从已点赞的歌曲中移除' : '收藏至你已点赞的歌曲' }}</span>
                 </div>
               </div>
               <div class="song-popup-menu-item" @click="handleAddToQueue(currentSong)">
