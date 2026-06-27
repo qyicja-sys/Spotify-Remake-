@@ -78,7 +78,7 @@ const likedSongIds = ref(new Set())
 const activeSongMenuId = ref(null)
 const songMenuStyle = ref({})
 
-// 錪犲&ユ璕鍗"瀛愯廠鍗"
+// 收藏歌单子菜单
 const showPlaylistSubmenu = ref(false)
 const addToPlaylistSong = ref(null)
 const playlistSearchQuery = ref('')
@@ -122,7 +122,7 @@ const cropCanvasRef = ref(null)
 const editFileInput = ref(null)
 const cropState = ref({ x: 0, y: 0, scale: 1, dragging: false, startX: 0, startY: 0, img: null })
 
-// 瑁佸0脊妗 鏯舵瑏
+// 裁剪弹框相关
 const showCropModal = ref(false)
 const cropModalCanvasRef = ref(null)
 
@@ -143,7 +143,7 @@ const uploadMusicDuration = ref(null)
 const uploadSongSaving = ref(false)
 const uploadSongError = ref('')
 
-// 联名艺术家搜索状态?
+// 联名艺术家搜索状态
 const featuredSearchQuery = ref('')
 const featuredSearchResults = ref([])
 const featuredSearchLoading = ref(false)
@@ -197,7 +197,7 @@ const restoredTime = ref(0) // 恢复的播放位置（秒）
 const showSidePanel = ref(localStorage.getItem('spotify_side_panel_open') === 'true') // 右侧面板显隐
 const sidePanelArtist = ref(null) // 右侧面板展示的艺人信息?
 
-// 获取当前歌曲的第一位艺术家名?
+// 获取当前歌曲的第一位艺术家名
 const firstArtistName = computed(() => {
   if (!currentSong.value?.artist) return ''
   return currentSong.value.artist.split(',')[0].trim()
@@ -270,7 +270,7 @@ async function playSong(song, queue) {
       let lastSaveTime = 0
       audio.value.addEventListener('timeupdate', () => {
         currentTime.value = audio.value.currentTime
-        // 每5秒保存一次播放进度?
+        // 每5秒保存一次播放进度
         if (audio.value.currentTime - lastSaveTime >= 5) {
           lastSaveTime = audio.value.currentTime
           if (currentSong.value) {
@@ -309,7 +309,7 @@ async function playSong(song, queue) {
       if (isNewQueue) {
         playedList.value = [] // 新歌单清空随机播放记录?
 
-        // 如果开启了随机播放，打乱队列顺序，但保持当前歌曲在第一位?
+        // 如果开启了随机播放，打乱队列顺序，但保持当前歌曲在第一位
         if (shuffleActive.value) {
           const shuffled = [...queue]
           const currentIdx = shuffled.findIndex(s => s.id === song.id)
@@ -444,7 +444,7 @@ function playPrev() {
 }
 
 function onEnded() {
-  // 单曲循环：重播当前歌曲?
+  // 单曲循环：重播当前歌曲
   if (repeatActive.value) {
     audio.value.currentTime = 0
     audio.value.play()
@@ -646,7 +646,7 @@ async function openPlaylist(playlistId) {
     playedList.value = [] // 切换歌单时清空随机播放记录?
     // 加载收藏状态'
     loadLikedStatus(res.data.data?.songs)
-    // 检查歌单收藏状态?
+    // 检查歌单收藏状态
     isCurrentPlaylistCollected.value = false
     if (res.data.data?.userId && res.data.data.userId !== getCurrentUserId()) {
       try {
@@ -662,7 +662,7 @@ async function openPlaylist(playlistId) {
     if (bg) {
       playlistGradient.value = ''
     } else if (name === '已点赞的歌曲') {
-      // 已点赞的歌曲：固定渐变色，所有人一样?
+      // 已点赞的歌曲：固定渐变色，所有人一样
       playlistGradient.value = 'linear-gradient(to bottom, #4c1d95 0%, #121212 100%)'
     } else if (type === 0) {
       // 用户自建歌单：根据头像主色调生成渐变
@@ -896,9 +896,9 @@ function closeEditPlaylist() {
 }
 
 function onEditPlaylistTitleInput() {
-  // 输入时清除蓝色提示?
+  // 输入时清除蓝色提示
   editPlaylistError.value = ''
-  // 实时检测是否为空?
+  // 实时检测是否为空
   editPlaylistNameEmpty.value = !editPlaylistTitle.value.trim()
 }
 
@@ -1084,7 +1084,7 @@ function onSearchInput() {
           songs: res.data.data.songs || [],
           artists
         }
-        // 批量检查关注状态?
+        // 批量检查关注状态
         if (artists.length > 0) {
           Promise.all(artists.map(a => checkArtistFollowed(a.id).then(r => ({ id: a.id, followed: r.data?.data?.followed || false })).catch(() => ({ id: a.id, followed: false }))))
             .then(results => {
@@ -1146,7 +1146,7 @@ async function handleToggleFollow(artist) {
       followedArtistIds.value = new Set([...followedArtistIds.value, artist.id])
     }
     console.log('[handleToggleFollow] success, refreshing dashboard')
-    // 关闭搜索框，刷新侧边栏?
+    // 关闭搜索框，刷新侧边栏
     showSearchDropdown.value = false
     refreshDashboard()
   } catch (e) {
@@ -1228,7 +1228,7 @@ async function submitRegisterArtist() {
   try {
     await registerArtist(name)
     showRegisterArtist.value = false
-    // 迤锋颁釜浜轰富椤垫"版嵁
+// 刷新个人主页数据
     const res = await getProfile()
     if (res.data?.data) {
       profileData.value = res.data.data
@@ -1566,7 +1566,7 @@ function onEditAvatarSelect(e) {
   const reader = new FileReader()
   reader.onload = (ev) => {
     const dataUrl = ev.target.result
-    // 鍔犺浇鍥剧墖鑾峰彇灏哄
+    // 加载图片获取尺寸
     const img = new Image()
     img.onload = () => {
       cropState.value.img = img
@@ -1645,7 +1645,7 @@ function drawCropCanvas() {
   ctx.drawImage(img, cropState.value.x, cropState.value.y, drawW, drawH)
   ctx.restore()
 
-  // 澶栧湀鍗婇€忔槑閬僵
+  // 外圈半透明遮罩
   ctx.save()
   ctx.beginPath()
   ctx.rect(0, 0, size, size)
@@ -1654,7 +1654,7 @@ function drawCropCanvas() {
   ctx.fill()
   ctx.restore()
 
-  // 鍦嗗舰杈规
+  // 圆形边框
   ctx.beginPath()
   ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(255,255,255,0.6)'
@@ -1691,7 +1691,7 @@ function drawCropModalCanvas() {
   ctx.drawImage(img, cropState.value.x, cropState.value.y, drawW, drawH)
   ctx.restore()
 
-  // 澶栧湀鍗婇€忔槑閬僵
+  // 外圈半透明遮罩
   ctx.save()
   ctx.beginPath()
   ctx.rect(0, 0, size, size)
@@ -1700,7 +1700,7 @@ function drawCropModalCanvas() {
   ctx.fill()
   ctx.restore()
 
-  // 鍦嗗舰杈规
+  // 圆形边框
   ctx.beginPath()
   ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(255,255,255,0.6)'
@@ -1919,7 +1919,7 @@ async function openProfile() {
           profileBgColor.value = color
         })
       }
-      // 濡傛灉鏄壓鏈锛屽姞杞戒笓杈?
+      // 如果是艺术家，加载专辑
       if (res.data.data.isArtist && res.data.data.artistId) {
         try {
           const albumsRes = await getArtistAlbums(res.data.data.artistId)
@@ -2015,7 +2015,7 @@ function playSearchSong(song) {
   searchQuery.value = ''
 }
 
-// 浠庢瓕鍗曟挱鏀惧閮ㄦ瓕鏇?
+// 从歌单播放外部歌曲
 function playExternalSongFromPlaylist(song, queue) {
   if (!audio.value) {
     audio.value = new Audio()
@@ -2155,7 +2155,7 @@ function playExternalTrack(track, fromQueue = false) {
   isPlaying.value = true
   playerVisible.value = true
 
-  // 鎸佷箙鍖栧綋鍓嶆挱鏀炬瓕鏇?
+  // 持久化当前播放歌曲
   saveLastSong({ ...currentSong.value, currentTime: 0 })
 
   // 记录外部歌曲播放历史
@@ -2225,7 +2225,7 @@ async function handleLikeExternalTrack(track) {
   }
 }
 
-// 濮濆本娲告:村钴块挎粧宕x
+// 歌曲更多菜单切换
 function toggleSongMenu(song, event) {
   if (activeSongMenuId.value === song.id) {
     closeSongMenu()
@@ -2244,7 +2244,7 @@ function toggleSongMenu(song, event) {
     top = rect.top - menuHeight - gap
   }
 
-  // 左对齐：默认右对齐按钮，空间不够则左﹀榻?
+  // 左对齐：默认右对齐按钮，空间不够则左对齐
   let left = rect.right - 200
   if (left + 200 > vw) {
     left = rect.left
@@ -2317,7 +2317,8 @@ async function loadExpandLyrics(song) {
   try {
     let res
     if (song.isExternal && song.externalSource && song.externalId) {
-      res = await getExternalLyrics(song.externalSource, song.externalId)
+      const pureId = song.externalId.replace(/^[^_]+_/, '')
+      res = await getExternalLyrics(song.externalSource, pureId)
     } else {
       res = await getLocalLyrics(song.title)
     }
@@ -2400,7 +2401,7 @@ function closeSidePanelSongMenu() {
 function openPlaylistSubmenu(song, event) {
   addToPlaylistSong.value = song
   playlistSearchQuery.value = ''
-  // 判断子菜单展开方向：根据鼠标位置?
+  // 判断子菜单展开方向：根据鼠标位置
   const rect = event.currentTarget.getBoundingClientRect()
   submenuOpenLeft.value = rect.left > 260
   showPlaylistSubmenu.value = true
@@ -2542,7 +2543,7 @@ async function loadLikedStatus(songs) {
         ids.add(song.id)
       }
     } catch {
-      // 蹇界暐鍗曚釜鏌ヨ澶辫触
+      // 忽略单个查询失败
     }
   }
   likedSongIds.value = ids
@@ -2562,7 +2563,7 @@ const sortedPlaylists = computed(() => {
       rest.push(p)
     }
   }
-  // 收藏歌单追加在自建歌单之后?
+  // 收藏歌单追加在自建歌单之后
   return [...liked, ...rest, ...collectedPlaylists.value]
 })
 
@@ -2625,7 +2626,7 @@ onMounted(async () => {
     currentSong.value = lastSong
     playerVisible.value = true
   }
-  // 浠庢湇鍔″櫒鑾峰彇鏈€鏂版暟鎹?
+  // 从服务器获取最新数据
   await refreshDashboard()
   // 如果是个人资料页面，加载profileData
   if (currentView.value === 'profile') {
@@ -2639,7 +2640,7 @@ onMounted(async () => {
             profileBgColor.value = color
           })
         }
-        // 濡傛灉鏄壓鏈锛屽姞杞戒笓杈?
+        // 如果是艺术家，加载专辑
         if (res.data.data.isArtist && res.data.data.artistId) {
           try {
             const albumsRes = await getArtistAlbums(res.data.data.artistId)
@@ -2710,7 +2711,7 @@ onMounted(() => {
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
 
-  // 椤甸潰鍏抽棴鍓嶄繚瀛樻挱鏀捐繘搴?
+  // 页面关闭前保存播放进度
   window.addEventListener('beforeunload', savePlaybackState)
 
   // 初始化音量条DOM（参考音量条html，直接操作DOM）
@@ -2780,7 +2781,7 @@ onBeforeUnmount(() => {
                     <div class="search-item-title">{{ song.title }}</div>
                     <div class="search-item-sub">{{ song.artistName || '未知艺人' }}</div>
                   </div>
-                  <button class="search-item-action-btn" @click.stop title="娣诲姞鑷虫瓕鍗?">
+                  <button class="search-item-action-btn" @click.stop title="添加到歌单">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
                   </button>
                 </div>
@@ -4690,7 +4691,7 @@ onBeforeUnmount(() => {
             <div class="expand-lyrics">
               <div v-if="expandLyricsLoading" class="lyrics-placeholder">
                 <div class="lyrics-spinner"></div>
-                <span>歌词加载中...'</span>
+                <span>歌词加载中...</span>
               </div>
               <div v-else-if="expandLyrics.length" class="lyrics-scroll" ref="lyricsScrollRef">
                 <div class="lyrics-padding-top"></div>
