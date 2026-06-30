@@ -5,14 +5,8 @@ import spotifyLogo from '../assets/spotify_242118.svg'
 import playImage from '../assets/鎾斁.png'
 import forwardImage from '../assets/蹇繘.png'
 import musicImage from '../assets/音乐.png'
-import CaptchaModal from './CaptchaModal.vue'
-import { checkCaptcha, getCaptcha, login, resetPassword, signUp } from '../api/auth'
-
-const CAPTCHA_IMAGE_WIDTH = 310
-const CAPTCHA_SLIDER_SIZE = 45
-const CAPTCHA_SLIDER_TOP = 40
-const CAPTCHA_MAX_OFFSET = CAPTCHA_IMAGE_WIDTH - CAPTCHA_SLIDER_SIZE
-const CAPTCHA_TRACK_BUTTON_SIZE = 48
+import CaptchaVerify from './CaptchaVerify.vue'
+import { login, resetPassword, signUp } from '../api/auth'
 
 const languageOptions = [
   { code: 'en', label: 'English', nativeLabel: 'English', region: 'Global' },
@@ -137,6 +131,7 @@ const password = ref('')
 const username = ref('')
 const nickname = ref('')
 const loginErrorMessage = ref('')
+const kickedOutBanner = ref(false)
 const signUpSuccessMessage = ref('')
 let signUpRedirectTimer = null
 const showPassword = ref(false)
@@ -153,21 +148,10 @@ const languagePanelRef = ref(null)
 
 const captchaVerificationToken = ref('')
 const captchaVerifiedScene = ref('')
-const captchaModalVisible = ref(false)
-const captchaLoading = ref(false)
-const captchaChecking = ref(false)
 const captchaVerified = ref(false)
-const captchaBackgroundImage = ref('')
-const captchaSliderImage = ref('')
-const captchaToken = ref('')
-const captchaHintText = ref('Click "Request Code" to load the slider captcha.')
+const captchaVerifyVisible = ref(false)
 const captchaScene = ref('signup')
-const sliderLeft = ref(0)
-const sliderButtonLeft = ref(0)
-const isDraggingSlider = ref(false)
 
-const sliderTop = computed(() => CAPTCHA_SLIDER_TOP)
-const sliderProgressWidth = computed(() => sliderButtonLeft.value + CAPTCHA_TRACK_BUTTON_SIZE)
 const signUpVerified = computed(
   () => captchaVerificationToken.value && captchaVerifiedScene.value === 'signup',
 )
@@ -193,18 +177,9 @@ function clearLoginError() {
 
 function resetCaptchaState() {
   captchaVerificationToken.value = ''
-  captchaVerifiedScene.value = ''
-  captchaToken.value = ''
   captchaVerified.value = false
-  captchaBackgroundImage.value = ''
-  captchaSliderImage.value = ''
-  captchaModalVisible.value = false
+  captchaVerifyVisible.value = false
   captchaScene.value = 'signup'
-  captchaChecking.value = false
-  sliderLeft.value = 0
-  sliderButtonLeft.value = 0
-  isDraggingSlider.value = false
-  captchaHintText.value = 'Click "Request Code" to load the slider captcha.'
 }
 
 function togglePasswordVisibility() {
@@ -265,6 +240,10 @@ async function handleLogin() {
       if (data.userInfo?.jwt) {
         sessionStorage.setItem('jwt', data.userInfo.jwt)
         localStorage.setItem('jwt', data.userInfo.jwt)
+      }
+      if (data.userInfo?.refreshToken) {
+        sessionStorage.setItem('refreshToken', data.userInfo.refreshToken)
+        localStorage.setItem('refreshToken', data.userInfo.refreshToken)
       }
     }
     window.location.href = '/spotify-frontend/main.html'
@@ -377,138 +356,27 @@ async function handleResetPassword() {
   }
 }
 
-async function handleRequestCode() {
-  if (!email.value) {
-    loginErrorMessage.value = 'Please enter your email first'
-    return
-  }
-  clearLoginError()
-  await fetchCaptcha('signup')
-}
-
-async function handleRequestResetCode() {
-  if (!resetEmail.value) {
-    loginErrorMessage.value = 'Please enter your email first'
-    return
-  }
-  clearLoginError()
-  await fetchCaptcha('reset')
-}
-
-async function fetchCaptcha(scene = 'signup') {
-  captchaLoading.value = true
-  captchaChecking.value = false
+function handleRequestCode() {
+  captchaScene.value = 'signup'
   captchaVerified.value = false
-  captchaVerificationToken.value = ''
-  captchaVerifiedScene.value = ''
-  captchaScene.value = scene
-  captchaHintText.value = 'Loading slider captcha...'
-  sliderLeft.value = 0
-  sliderButtonLeft.value = 0
-
-  try {
-    const response = await getCaptcha()
-    const { backgroundImage, sliderImage, token, msg } = response.data || {}
-    if (!backgroundImage || !sliderImage || !token) {
-      captchaHintText.value = msg || 'Failed to load captcha'
-      return
-    }
-    captchaBackgroundImage.value = backgroundImage
-    captchaSliderImage.value = sliderImage
-    captchaToken.value = token
-    captchaModalVisible.value = true
-    captchaHintText.value = 'Drag the slider until the puzzle piece is aligned.'
-  } catch (error) {
-    captchaHintText.value = error.response?.data?.msg || error.message || 'Failed to load captcha, please try again.'
-  } finally {
-    captchaLoading.value = false
-  }
+  captchaVerifyVisible.value = true
 }
 
-async function refreshCaptcha() {
-  await fetchCaptcha(captchaScene.value)
+function handleRequestResetCode() {
+  captchaScene.value = 'reset'
+  captchaVerified.value = false
+  captchaVerifyVisible.value = true
 }
 
-function closeCaptchaModal() {
-  captchaModalVisible.value = false
-  isDraggingSlider.value = false
+function onCaptchaSuccess(params) {
+  captchaVerificationToken.value = params.captchaVerification
+  captchaVerified.value = true
+  captchaVerifiedScene.value = captchaScene.value
+  captchaVerifyVisible.value = false
 }
 
-function extractClientX(event) {
-  if (event.touches?.length) {
-    return event.touches[0].clientX
-  }
-  if (event.changedTouches?.length) {
-    return event.changedTouches[0].clientX
-  }
-  return event.clientX
-}
-
-function updateSliderPosition(clientX, currentTarget) {
-  const track = currentTarget || document.querySelector('.captcha-drag-track')
-  if (!track || typeof clientX !== 'number') {
-    return
-  }
-  const rect = track.getBoundingClientRect()
-  const maxButtonLeft = rect.width - CAPTCHA_TRACK_BUTTON_SIZE
-  const rawButtonLeft = clientX - rect.left - CAPTCHA_TRACK_BUTTON_SIZE / 2
-  const nextButtonLeft = Math.min(Math.max(rawButtonLeft, 0), maxButtonLeft)
-  const ratio = maxButtonLeft > 0 ? nextButtonLeft / maxButtonLeft : 0
-  sliderButtonLeft.value = nextButtonLeft
-  sliderLeft.value = Math.round(ratio * CAPTCHA_MAX_OFFSET)
-}
-
-function handleSliderStart(event) {
-  if (captchaChecking.value || captchaVerified.value || !captchaToken.value) {
-    return
-  }
-  isDraggingSlider.value = true
-  captchaHintText.value = 'Release the slider when the puzzle piece is aligned.'
-  updateSliderPosition(extractClientX(event), event.currentTarget.parentElement)
-}
-
-function handleSliderMove(event) {
-  if (!isDraggingSlider.value || captchaChecking.value || captchaVerified.value) {
-    return
-  }
-  updateSliderPosition(extractClientX(event), event.currentTarget)
-}
-
-async function handleSliderEnd() {
-  if (!isDraggingSlider.value || captchaChecking.value || captchaVerified.value) {
-    isDraggingSlider.value = false
-    return
-  }
-  isDraggingSlider.value = false
-  captchaChecking.value = true
-  captchaHintText.value = 'Checking captcha...'
-
-  try {
-    const response = await checkCaptcha({
-      token: captchaToken.value,
-      userX: String(sliderLeft.value),
-    })
-    const { success, captchaVerification, msg } = response.data || {}
-    if (!success) {
-      captchaHintText.value = msg || 'Verification failed, please try again.'
-      sliderLeft.value = 0
-      sliderButtonLeft.value = 0
-      return
-    }
-    captchaVerified.value = true
-    captchaVerificationToken.value = captchaVerification
-    captchaVerifiedScene.value = captchaScene.value
-    captchaHintText.value = msg || 'Verification successful'
-    window.setTimeout(() => {
-      captchaModalVisible.value = false
-    }, 500)
-  } catch (error) {
-    captchaHintText.value = error.response?.data?.msg || error.message || 'Verification failed, please refresh and try again.'
-    sliderLeft.value = 0
-    sliderButtonLeft.value = 0
-  } finally {
-    captchaChecking.value = false
-  }
+function onCaptchaError() {
+  captchaVerifyVisible.value = false
 }
 
 function handleJoinNow() {
@@ -543,6 +411,12 @@ function isJwtExpired(token) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  // 检测是否被其他设备登录踢出
+  if (sessionStorage.getItem('kickedOut') === '1') {
+    sessionStorage.removeItem('kickedOut')
+    kickedOutBanner.value = true
+    setTimeout(() => { kickedOutBanner.value = false }, 4500)
+  }
   // 检查是否已登录，如果有有效的 JWT 则直接跳转到主页面
   const jwt = localStorage.getItem('jwt') || sessionStorage.getItem('jwt')
   if (jwt && !isJwtExpired(jwt)) {
@@ -565,6 +439,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="auth-page" v-cloak>
+    <div v-if="kickedOutBanner" class="kicked-out-banner">Logged out</div>
     <div class="left-panel">
       <div class="logo-area">
         <div class="logo-text">
@@ -652,8 +527,8 @@ onBeforeUnmount(() => {
                 {{ signUpVerified ? 'Slider verified' : 'Complete the slider check before sign up' }}
               </span>
             </div>
-            <button type="button" class="btn-request-code" :disabled="captchaLoading" @click="handleRequestCode">
-              {{ captchaLoading ? 'Loading...' : 'Request Code' }}
+            <button type="button" class="btn-request-code" @click="handleRequestCode">
+              Request Code
             </button>
           </div>
         </div>
@@ -722,8 +597,8 @@ onBeforeUnmount(() => {
                 {{ resetVerified ? 'Slider verified' : 'Complete the slider check before resetting password' }}
               </span>
             </div>
-            <button type="button" class="btn-request-code" :disabled="captchaLoading" @click="handleRequestResetCode">
-              {{ captchaLoading ? 'Loading...' : 'Request Code' }}
+            <button type="button" class="btn-request-code" @click="handleRequestResetCode">
+              Request Code
             </button>
           </div>
         </div>
@@ -802,23 +677,11 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <CaptchaModal
-      :visible="captchaModalVisible"
-      :background-image="captchaBackgroundImage"
-      :slider-image="captchaSliderImage"
-      :slider-left="sliderLeft"
-      :slider-top="sliderTop"
-      :slider-progress-width="sliderProgressWidth"
-      :slider-button-left="sliderButtonLeft"
-      :hint-text="captchaHintText"
-      :loading="captchaLoading"
-      :checking="captchaChecking"
-      :verified="captchaVerified"
-      @close="closeCaptchaModal"
-      @refresh="refreshCaptcha"
-      @slider-start="handleSliderStart"
-      @slider-move="handleSliderMove"
-      @slider-end="handleSliderEnd"
+    <CaptchaVerify
+      :visible="captchaVerifyVisible"
+      @close="captchaVerifyVisible = false"
+      @success="onCaptchaSuccess"
+      @error="onCaptchaError"
     />
   </div>
 </template>

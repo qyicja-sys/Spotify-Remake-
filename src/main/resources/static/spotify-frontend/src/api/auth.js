@@ -43,9 +43,13 @@ function createError(message, responseData, status) {
   return error
 }
 
-function redirectToLogin() {
+function redirectToLogin(kickedOut = false) {
   sessionStorage.clear()
   localStorage.removeItem('jwt')
+  localStorage.removeItem('refreshToken')
+  if (kickedOut) {
+    sessionStorage.setItem('kickedOut', '1')
+  }
   window.location.href = '/spotify-frontend/'
 }
 
@@ -64,11 +68,68 @@ async function parseResponseBody(response) {
   }
 }
 
+// ── Token 刷新 ───────────────────────────────────────────────────────────────
+
+let isRefreshing = false
+let refreshPromise = null
+
+/** 尝试用 refreshToken 换取新的 access token，成功则更新 sessionStorage */
+async function tryRefreshToken() {
+  const refreshToken = sessionStorage.getItem('refreshToken') || localStorage.getItem('refreshToken')
+  if (!refreshToken) return false
+
+  // 避免并发刷新
+  if (isRefreshing) {
+    await refreshPromise
+    return !!sessionStorage.getItem('jwt')
+  }
+
+  isRefreshing = true
+  refreshPromise = (async () => {
+    try {
+      const resp = await fetch('/spotify/token/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      })
+      const data = await resp.json()
+      if (resp.ok && data.code === 200 && data.data) {
+        const { jwt, refreshToken: newRefreshToken } = data.data
+        if (jwt) {
+          sessionStorage.setItem('jwt', jwt)
+          localStorage.setItem('jwt', jwt)
+        }
+        if (newRefreshToken) {
+          sessionStorage.setItem('refreshToken', newRefreshToken)
+          localStorage.setItem('refreshToken', newRefreshToken)
+        }
+        return true
+      }
+      return false
+    } catch {
+      return false
+    } finally {
+      isRefreshing = false
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
 function throwIfNotOk(response, data) {
   if (response.ok) return
   if (response.status === 401) {
-    redirectToLogin()
-    throw createError('登录已过期，请重新登录', data, 401)
+    const kickedOut = data?.msg === 'ACCOUNT_LOGGED_IN_ELSEWHERE'
+    // ACCOUNT_LOGGED_IN_ELSEWHERE 不走刷新，直接踢出
+    if (kickedOut) {
+      redirectToLogin(true)
+      throw createError('Account logged in elsewhere', data, 401)
+    }
+    // 普通 401：抛出一个可被 request() 捕获并尝试刷新的错误
+    const err = createError('TOKEN_EXPIRED', data, 401)
+    err.needsRefresh = true
+    throw err
   }
   const message = data?.message || data?.msg || `Request failed: ${response.status}`
   throw createError(message, data, response.status)
@@ -79,36 +140,72 @@ function throwIfNotOk(response, data) {
 async function request(method, path, payload, { timeout = 10000 } = {}) {
   const url = withBase(path)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
+  let timer = setTimeout(() => controller.abort(), timeout)
 
-  const options = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...getTokenHeader(),
-    },
-    credentials: 'include',
-    cache: 'no-store',
-    signal: controller.signal,
+  function resetTimer() {
+    clearTimeout(timer)
+    timer = setTimeout(() => controller.abort(), timeout)
   }
 
-  if (payload != null) {
-    options.body = JSON.stringify(payload)
+  async function doFetch() {
+    const options = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...getTokenHeader(),
+      },
+      credentials: 'include',
+      cache: 'no-store',
+      signal: controller.signal,
+    }
+
+    if (payload != null) {
+      options.body = JSON.stringify(payload)
+    }
+
+    let response
+    try {
+      response = await fetch(url, options)
+    } catch (error) {
+      if (error.name === 'AbortError') throw createError('请求超时，请稍后重试', null, 0)
+      throw createError('Network error, please try again', null, 0)
+    }
+
+    const data = await parseResponseBody(response)
+    throwIfNotOk(response, data)
+    return { data, status: response.status }
   }
 
-  let response
   try {
-    response = await fetch(url, options)
+    const result = await doFetch()
+    clearTimeout(timer)
+    return result
   } catch (error) {
     clearTimeout(timer)
-    if (error.name === 'AbortError') throw createError('请求超时，请稍后重试', null, 0)
-    throw createError('Network error, please try again', null, 0)
+    // Token 过期 → 尝试刷新后重试一次
+    if (error.needsRefresh) {
+      const refreshed = await tryRefreshToken()
+      if (refreshed) {
+        resetTimer()
+        try {
+          const retryResult = await doFetch()
+          clearTimeout(timer)
+          return retryResult
+        } catch (retryError) {
+          clearTimeout(timer)
+          if (retryError.needsRefresh) {
+            redirectToLogin(false)
+            throw createError('登录已过期，请重新登录', null, 401)
+          }
+          throw retryError
+        }
+      }
+      // 刷新失败 → 跳登录
+      redirectToLogin(false)
+      throw createError('登录已过期，请重新登录', null, 401)
+    }
+    throw error
   }
-  clearTimeout(timer)
-
-  const data = await parseResponseBody(response)
-  throwIfNotOk(response, data)
-  return { data, status: response.status }
 }
 
 // ── Upload helper (shared by uploadAvatar / uploadSong) ──────────────────────
@@ -142,14 +239,6 @@ export function resetPassword(payload) {
   return request('POST', '/spotify/login/forgetPassword', payload)
 }
 
-export function getCaptcha() {
-  return request('GET', '/captcha/get')
-}
-
-export function checkCaptcha(payload) {
-  return request('POST', '/captcha/check', payload)
-}
-
 export function getPlaylistDetail(id) {
   return request('GET', `/spotify/playlist/${id}`)
 }
@@ -164,6 +253,10 @@ export function getHome() {
 
 export function getStreamUrl(id) {
   return request('GET', `/stream/songs/${id}/stream-url`)
+}
+
+export function getExternalStreamUrl(source, externalId) {
+  return request('GET', `/stream/songs/external/${source}/${externalId}/stream-url`)
 }
 
 export function search(keyword) {
