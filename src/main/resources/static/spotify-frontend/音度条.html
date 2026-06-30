@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>完美跟随进度条</title>
+    <style>
+        :root {
+            --gray-bg: rgb(179, 179, 179);  /* 右侧未选中部分的灰色 */
+            --white-fill: #ffffff;         /* 静态白色 */
+            --green-fill: #4caf50;         /* 拖动时绿色 */
+            --black-thumb: #000000;        /* 黑色圆形端点 */
+            --bar-height: 12px;            /* 轨道高度与圆形直径 */
+        }
+
+        body {
+            background-color: #333; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        /* 进度条总外层容器 */
+        .progress-container {
+            width: 80%;
+            max-width: 600px;
+            position: relative;
+            padding: 20px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* 下层总轨道 */
+        .progress-track {
+            height: var(--bar-height);
+            border-radius: calc(var(--bar-height) / 2);
+            position: relative;
+            background-color: transparent; /* 靠两层拼接，这里设为透明 */
+        }
+
+        /* 1. 左侧进度填充层（白/绿） */
+        .progress-fill {
+            height: 100%;
+            width: 50%; /* 初始进度 */
+            background-color: var(--white-fill);
+            border-radius: calc(var(--bar-height) / 2) 0 0 calc(var(--bar-height) / 2);
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* 当被拖动时，进度条填充变为绿色 */
+        .progress-container.dragging .progress-fill {
+            background-color: var(--green-fill);
+        }
+
+        /* 2. 右侧未选中部分（灰色凹槽） */
+        .progress-empty {
+            height: 100%;
+            width: 50%; /* 初始值，与 fill 互补 */
+            background-color: var(--gray-bg);
+            border-radius: 0 calc(var(--bar-height) / 2) calc(var(--bar-height) / 2) 0;
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 1;
+        }
+
+        /* 3. 黑色圆形端点 */
+        .progress-thumb {
+            width: var(--bar-height); 
+            height: var(--bar-height);
+            background-color: var(--black-thumb);
+            border-radius: 50%; /* 严格圆形 */
+            position: absolute;
+            top: 50%;
+            /* 它的 left 值永远和进度条的百分比保持绝对一致 */
+            left: 50%; 
+            /* 通过 translate(-50%, -50%) 让圆心精准压在左侧白绿、右侧灰色的交界线上 */
+            transform: translate(-50%, -50%); 
+            z-index: 2; /* 盖在最上面 */
+        }
+
+        /* 数值显示 */
+        .percentage-text {
+            color: white;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div>
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+                <div class="progress-empty" id="progressEmpty"></div>
+                <div class="progress-thumb" id="progressThumb"></div>
+            </div>
+        </div>
+        <div class="percentage-text" id="percentageText">进度: 50%</div>
+    </div>
+
+    <script>
+        const container = document.getElementById('progressContainer');
+        const fill = document.getElementById('progressFill');
+        const empty = document.getElementById('progressEmpty');
+        const thumb = document.getElementById('progressThumb');
+        const text = document.getElementById('percentageText');
+
+        let isDragging = false;
+
+        function updateProgress(clientX) {
+            const rect = container.getBoundingClientRect();
+            let offsetX = clientX - rect.left;
+            let percentage = (offsetX / rect.width) * 100;
+            
+            percentage = Math.max(0, Math.min(100, percentage));
+
+            const percentageStr = percentage + '%';
+            
+            // 1. 左边拉长
+            fill.style.width = percentageStr;
+            // 2. 右边缩短
+            empty.style.width = (100 - percentage) + '%';
+            // 3. 圆形像素级同步跟随
+            thumb.style.left = percentageStr;
+            
+            text.innerText = `进度: ${Math.round(percentage)}%`;
+        }
+
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            container.classList.add('dragging');
+            updateProgress(e.clientX);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            updateProgress(e.clientX);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                container.classList.remove('dragging');
+            }
+        });
+
+        /* 移动端兼容 */
+        container.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            container.classList.add('dragging');
+            updateProgress(e.touches[0].clientX);
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            updateProgress(e.touches[0].clientX);
+        });
+
+        document.addEventListener('touchend', () => {
+            if (isDragging) {
+                isDragging = false;
+                container.classList.remove('dragging');
+            }
+        });
+    </script>
+
+</body>
+</html>

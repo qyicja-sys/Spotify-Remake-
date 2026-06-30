@@ -1,0 +1,448 @@
+<script setup>
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+
+const leftWidth = ref(360)
+const isDragging = ref(false)
+const mainRef = ref(null)
+
+function handleMouseMove(event) {
+  if (!isDragging.value || !mainRef.value) {
+    return
+  }
+
+  const mainRect = mainRef.value.getBoundingClientRect()
+  let nextWidth = event.clientX - mainRect.left
+
+  if (nextWidth < 150) {
+    nextWidth = 150
+  }
+
+  if (nextWidth > mainRect.width - 200) {
+    nextWidth = mainRect.width - 200
+  }
+
+  leftWidth.value = nextWidth
+}
+
+function handleMouseUp() {
+  isDragging.value = false
+  document.body.style.cursor = 'default'
+  document.body.style.userSelect = 'auto'
+}
+
+function startDrag() {
+  isDragging.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+onMounted(() => {
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+})
+</script>
+
+<template>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="spotify-logo">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.67-.137-.746-.473-.075-.335.137-.67.473-.746 3.855-.88 7.15-.51 9.82.123.294.18.387.564.206.86zm1.225-2.72c-.227.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.412.125-.845-.107-.97-.52-.124-.412.108-.846.52-.97 3.668-1.112 8.238-.575 11.343 1.334.367.227.488.707.26 1.074zm.105-2.833C14.43 8.712 8.49 8.514 5.043 9.56c-.53.16-1.09-.14-1.25-.67-.16-.53.14-1.09.67-1.25 3.963-1.203 10.526-.975 14.545 1.41.477.283.633.9.35 1.377-.284.478-.9.633-1.377.35z"/></svg>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <button class="btn-circle">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h4.5v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6H19V7.577l-6.5-4.33zM11 1h2a3 3 0 0 1 1.5 5.598V21a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V6.598A3 3 0 0 1 11 1z"/></svg>
+        </button>
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.533 1.279c-5.08 0-9.223 4.142-9.223 9.223 0 5.08 4.142 9.223 9.223 9.223 2.09 0 4.017-.7 5.556-1.874l4.635 4.635a.75.75 0 1 0 1.061-1.061l-4.621-4.621a9.18 9.18 0 0 0 1.815-5.526c0-5.081-4.142-9.223-9.223-9.223zm-7.723 9.223c0-4.254 3.469-7.723 7.723-7.723 4.254 0 7.722 3.469 7.722 7.723 0 4.254-3.468 7.723-7.722 7.723-4.254 0-7.723-3.469-7.723-7.723z"/></svg>
+          <input type="text" placeholder="你想播放什么？">
+          <div class="divider"></div>
+          <div class="btn-icon" style="width:auto; height:auto;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 22a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H3zm1-2h16V4H4v16zM6 6h12v2H6V6zm0 4h12v2H6v-2zm0 4h8v2H6v-2z"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="btn-pill">探索 Premium</button>
+        <button class="btn-pill-dark">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3a1 1 0 0 1 1 1v12.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-5 5a1 1 0 0 1-1.414 0l-5-5a1 1 0 1 1 1.414-1.414L11 16.586V4a1 1 0 0 1 1-1z"/></svg>
+          安装应用
+        </button>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 21a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2zm7.121-4.707A1 1 0 0 0 19 15.586V10a7 7 0 0 0-5.5-6.856V2.75a1.5 1.5 0 0 0-3 0v.394A7 7 0 0 0 5 10v5.586a1 1 0 0 0 .293.707l-1.5 1.5A1 1 0 0 0 4.5 20h15a1 1 0 0 0 .707-1.707l-1.086-1.086zM7 10a5 5 0 0 1 10 0v5.586l.707.707H6.293l.707-.707V10z"/></svg>
+        </div>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M14.5 2.125a3.625 3.625 0 1 1 0 7.25 3.625 3.625 0 0 1 0-7.25zM12.375 5.75a2.125 2.125 0 1 0 4.25 0 2.125 2.125 0 0 0-4.25 0zm-6.25-2a2.875 2.875 0 1 1 0 5.75 2.875 2.875 0 0 1 0-5.75zM4.625 6.625a1.375 1.375 0 1 0 2.75 0 1.375 1.375 0 0 0-2.75 0zm11.45 6.455c1.427.104 2.425.437 3.064 1.127.676.73.861 1.815.861 3.543V20h-1.5v-2.25c0-1.391-.118-2.062-.486-2.46-.334-.36-.975-.626-2.239-.715l.3-1.495zM4.19 15.01c.4-.432 1.157-.76 2.685-.86l.098 1.497c-1.28.084-1.714.302-1.895.497-.225.243-.328.694-.328 1.856V20H3.25v-2.25c0-1.854.218-3.023.94-3.74zM14.5 12c2.146 0 3.51.536 4.35 1.442.853.92 1.025 2.296 1.025 4.308V21H9v-3.25c0-2.012.172-3.388 1.025-4.308.84-.906 2.204-1.442 4.35-1.442zm-4 5.75h8v-.25c0-1.758-.117-2.61-.55-3.077-.41-.443-1.343-.923-3.45-.923s-3.04.48-3.45.923c-.433.467-.55 1.32-.55 3.077v.25z"/></svg>
+        </div>
+        <div class="profile-img">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#b3b3b3"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div ref="mainRef" class="main">
+      <div class="panel left" :style="{ width: `${leftWidth}px` }">
+        <div class="library-header">
+          <div class="lib-title">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 22a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H3zm1-2h13V4H4v16zM6 6h8v2H6V6zm0 4h8v2H6v-2zm0 4h5v2H6v-2z"/></svg>
+            <span>音乐库</span>
+          </div>
+          <div class="lib-actions">
+            <div class="btn-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11 13H5v-2h6V5h2v6h6v2h-6v6h-2v-6z"/></svg>
+            </div>
+            <div class="btn-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-tags">
+          <div class="tag">歌单</div>
+          <div class="tag">艺人</div>
+        </div>
+
+        <div class="search-row">
+          <div class="btn-icon" style="width:28px; height:28px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10.533 1.279c-5.08 0-9.223 4.142-9.223 9.223 0 5.08 4.142 9.223 9.223 9.223 2.09 0 4.017-.7 5.556-1.874l4.635 4.635a.75.75 0 1 0 1.061-1.061l-4.621-4.621a9.18 9.18 0 0 0 1.815-5.526c0-5.081-4.142-9.223-9.223-9.223zm-7.723 9.223c0-4.254 3.469-7.723 7.723-7.723 4.254 0 7.722 3.469 7.722 7.723 0 4.254-3.468 7.723-7.722 7.723-4.254 0-7.723-3.469-7.723-7.723z"/></svg>
+          </div>
+          <div>最近播放
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-left:4px;"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+          </div>
+        </div>
+
+        <div class="list-container">
+          <div class="list-item">
+            <div class="item-cover bg-liked">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </div>
+            <div class="item-info">
+              <div class="item-title">已点赞的歌曲</div>
+              <div class="item-desc">
+                <span class="pin-icon">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+                </span>
+                歌单 &bull; 28 首歌曲
+              </div>
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="item-cover">
+              <div style="width:100%; height:100%; background: #e0d4c8;"></div>
+            </div>
+            <div class="item-info">
+              <div class="item-title">edit</div>
+              <div class="item-desc">歌单 &bull; ty1l</div>
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="item-cover">
+              <div style="width:100%; height:100%; background: #1a4a6b;"></div>
+            </div>
+            <div class="item-info">
+              <div class="item-title">常听</div>
+              <div class="item-desc">歌单 &bull; ty1l</div>
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="item-cover circle">
+              <div style="width:100%; height:100%; background: #c85a5a;"></div>
+            </div>
+            <div class="item-info">
+              <div class="item-title">girl in red</div>
+              <div class="item-desc">艺人</div>
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="item-cover circle">
+              <div style="width:100%; height:100%; background: #fff; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; font-size: 16px;">T</div>
+            </div>
+            <div class="item-info">
+              <div class="item-title">Toby Fox</div>
+              <div class="item-desc">艺人</div>
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="item-cover circle">
+              <div style="width:100%; height:100%; background: #d09c7a;"></div>
+            </div>
+            <div class="item-info">
+              <div class="item-title">Aries</div>
+              <div class="item-desc">艺人</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drag-bar" @mousedown="startDrag"></div>
+
+      <div class="panel right">
+        <div class="right-header">
+          <div class="category-tabs">
+            <div class="tab-active">全部</div>
+            <div class="tag">音乐</div>
+            <div class="tag">播客</div>
+          </div>
+        </div>
+
+        <div class="right-content">
+          <div class="quick-grid">
+            <div class="quick-card">
+              <div class="quick-card-img" style="background: #e8a2a2;"></div>
+              <div class="quick-card-title">eat you up</div>
+              <div class="play-overlay">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="quick-card">
+              <div class="quick-card-img" style="background: #a2bce8;"></div>
+              <div class="quick-card-title">mimichi</div>
+              <div class="play-overlay">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- For You Section -->
+          <div class="section">
+            <div class="section-header-row">
+              <h2 class="section-title">为你打造</h2>
+              <span class="show-all">显示全部</span>
+            </div>
+            <div class="grid">
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #2f698e;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 1</div>
+                <div class="card-desc">Aries, ericdoa, wishlane 等更多曲风</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #96a571;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 2</div>
+                <div class="card-desc">Taylor Swift, The Vamps, Bazzi 等更多曲...</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #b75345;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 3</div>
+                <div class="card-desc">girl in red, Vansire, d4vd 等更多曲风</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #87ceeb;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 4</div>
+                <div class="card-desc">LE SSERAFIM 和 NewJeans</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #111; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:20px; color:#c7f930; letter-spacing:-1px;">NEWJEANS</div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 5</div>
+                <div class="card-desc">NewJeans 和 LE SSERAFIM</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #111; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:20px; color:#a25ee8; letter-spacing:-1px;">NEWJEANS</div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">每日推荐 6</div>
+                <div class="card-desc">NewJeans 和 LE SSERAFIM</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Albums Section -->
+          <div class="section">
+            <div class="section-header-row">
+              <h2 class="section-title">收录你喜爱歌曲的专辑</h2>
+              <span class="show-all">显示全部</span>
+            </div>
+            <div class="grid">
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #eee; display:flex; align-items:center; justify-content:center;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="#121212"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                  </div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">Rebel</div>
+                <div class="card-desc">EsDeeKid</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #87ceeb;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">Ethereality</div>
+                <div class="card-desc">Pastel Ghost</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #9b2020;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">Vermins Project</div>
+                <div class="card-desc">ilyhiryu</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper">
+                  <div style="width:100%; height:100%; background: #d04629;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">Petals to Thorns</div>
+                <div class="card-desc">d4vd</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recently Played Section -->
+          <div class="section">
+            <div class="section-header-row">
+              <h2 class="section-title">最近播放</h2>
+              <span class="show-all">显示全部</span>
+            </div>
+            <div class="grid">
+              <div class="card">
+                <div class="card-img-wrapper circle">
+                  <div style="width:100%; height:100%; background: #f0c3d9;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">datealyfe</div>
+                <div class="card-desc">艺人</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper circle">
+                  <div style="width:100%; height:100%; background: #e8a2a2;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">eat you up</div>
+                <div class="card-desc">专辑 &bull; mimichi</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper circle">
+                  <div style="width:100%; height:100%; background: #a2bce8;"></div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">mimichi</div>
+                <div class="card-desc">艺人</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper circle">
+                  <div style="width:100%; height:100%; background: #eee; display:flex; align-items:center; justify-content:center;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="#121212"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                  </div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">EsDeeKid</div>
+                <div class="card-desc">艺人</div>
+              </div>
+              <div class="card">
+                <div class="card-img-wrapper bg-liked">
+                  <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                  </div>
+                  <div class="play-overlay"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+                </div>
+                <div class="card-title">已点赞的歌曲</div>
+                <div class="card-desc">歌单 &bull; Spotify</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer / Now Playing Bar -->
+    <div class="footer">
+      <div class="footer-left">
+        <div class="now-playing-img" style="background: #d4bcad;"></div>
+        <div class="now-playing-info">
+          <div class="now-playing-title">honey</div>
+          <div class="now-playing-artist">datealyfe, Sayako</div>
+        </div>
+        <div class="footer-left-icons">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </div>
+      </div>
+
+      <div class="footer-center">
+        <div class="controls">
+          <div class="control-btn">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M13.151 8.047l-2.108 2.108-1.06-1.06 3.638-3.638 3.638 3.638-1.06 1.06-2.108-2.108v7.406h-1.5V8.047zM2.849 7.953l2.108-2.108 1.06 1.06L2.379 10.543.741 6.905l1.06-1.06L3.91 7.953V.547h1.5v7.406z"/></svg>
+          </div>
+          <div class="control-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </div>
+          <div class="play-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div class="control-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 6h2v12h-2zm-10.5 12l8.5-6-8.5-6z"/></svg>
+          </div>
+          <div class="control-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+          </div>
+        </div>
+        <div class="playback-bar">
+          <span>0:04</span>
+          <div class="progress-bar">
+            <div class="progress-bar-fill"></div>
+            <div class="progress-knob"></div>
+          </div>
+          <span>2:15</span>
+        </div>
+      </div>
+
+      <div class="footer-right">
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm5 10a5 5 0 0 1-10 0H5a7 7 0 0 0 13.88 1.25l-1.93-.53A4.98 4.98 0 0 1 17 12zm-4 7.93V22h-2v-2.07A8.005 8.005 0 0 1 4 12h2a6 6 0 1 0 12 0h2a8.005 8.005 0 0 1-7 7.93z"/></svg>
+        </div>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zm16.5-4.5L14 8v7l5.5-3.5z"/></svg>
+        </div>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3.5l.5 2h2a.5.5 0 0 1 0 1h-10a.5.5 0 0 1 0-1h2l.5-2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v10h12V4H6z"/></svg>
+        </div>
+        <div class="volume-container">
+          <div class="btn-icon" style="width:28px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-3 1.77L6.41 9H3v6h3.41L11 19V5zm2 5.24c.73.32 1.25 1.05 1.25 1.91s-.52 1.59-1.25 1.91v-3.82z"/></svg>
+          </div>
+          <div class="volume-bar">
+            <div class="volume-bar-fill"></div>
+          </div>
+        </div>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 11h-8v6h8v-6zm4-7V3a2 2 0 0 0-2-2H3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4v2h10v-2h4a2 2 0 0 0 2-2V4zm-2 13H3V3h18v14z"/></svg>
+        </div>
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 2H2v5h2V4h3V2zm10 0v2h3v3h2V2h-5zM4 17H2v5h5v-2H4v-3zm16 3h-3v2h5v-5h-2v3z"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

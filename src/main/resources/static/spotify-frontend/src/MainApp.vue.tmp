@@ -1,0 +1,9 @@
+﻿*** Begin Patch
+*** Update File: D:\javaedit\project\spotify\Spotify_remake\Spotify_Remake\src\main\resources\static\spotify-frontend\src\MainApp.vue
+@@ const raw = res?.data?.data || res?.data @@
+     if (song.isExternal && song.externalSource && song.externalId) {
+-      res = await getExternalLyrics(song.externalSource, song.externalId)
++      const pureId = song.externalId.replace(/^[^_]+_/, '')
++      res = await getExternalLyrics(song.externalSource, pureId)
+     } else {
+*** End Patch
