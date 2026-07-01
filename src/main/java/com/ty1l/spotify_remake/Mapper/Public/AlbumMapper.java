@@ -24,4 +24,9 @@ public interface AlbumMapper {
     int update(Album album);
 
     int deleteById(@Param("id") Long id);
+
+    /**
+     * 查询所有专辑 ID（布隆过滤器启动预加载用）
+     */
+    List<Long> findAllIds();
 }

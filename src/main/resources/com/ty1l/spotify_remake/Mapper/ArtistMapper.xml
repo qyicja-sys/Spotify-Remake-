@@ -43,4 +43,8 @@
         DELETE FROM artists WHERE id = #{id}
     </delete>
 
+    <select id="findAllIds" resultType="java.lang.Integer">
+        SELECT id FROM artists
+    </select>
+
 </mapper>

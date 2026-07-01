@@ -52,4 +52,8 @@
         DELETE FROM albums WHERE id = #{id}
     </delete>
 
+    <select id="findAllIds" resultType="java.lang.Long">
+        SELECT id FROM albums
+    </select>
+
 </mapper>

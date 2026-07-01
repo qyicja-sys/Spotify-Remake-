@@ -14,8 +14,8 @@
 
     <insert id="insert" parameterType="com.ty1l.spotify_remake.Entity.Public.Song"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO songs (artistId, albumId, title, coverUrl, coverNetworkUrl, fileUrl, duration, external_source, external_id)
-        VALUES (#{artistId}, #{albumId}, #{title}, #{coverUrl}, #{coverNetworkUrl}, #{fileUrl}, #{duration}, #{externalSource}, #{externalId})
+        INSERT INTO songs (artistId, albumId, title, coverUrl, coverNetworkUrl, fileUrl, duration, external_source, external_id, lyrics, lyrics_url, pic_id)
+        VALUES (#{artistId}, #{albumId}, #{title}, #{coverUrl}, #{coverNetworkUrl}, #{fileUrl}, #{duration}, #{externalSource}, #{externalId}, #{lyrics}, #{lyricsUrl}, #{picId})
     </insert>
 
     <update id="update" parameterType="com.ty1l.spotify_remake.Entity.Public.Song">
@@ -30,6 +30,9 @@
             <if test="duration != null">duration = #{duration},</if>
             <if test="externalSource != null">external_source = #{externalSource},</if>
             <if test="externalId != null">external_id = #{externalId},</if>
+            <if test="lyrics != null">lyrics = #{lyrics},</if>
+            <if test="lyricsUrl != null">lyrics_url = #{lyricsUrl},</if>
+            <if test="picId != null">pic_id = #{picId},</if>
         </set>
         WHERE id = #{id}
     </update>
@@ -48,7 +51,8 @@
     </select>
 
     <select id="searchWithTitle" resultType="com.ty1l.spotify_remake.Entity.Public.SearchSongVO">
-        SELECT s.id, s.title, s.coverUrl, s.duration,
+        SELECT s.id, s.title, s.coverUrl, s.coverNetworkUrl, s.duration,
+               s.external_source AS externalSource, s.external_id AS externalId, s.fileUrl,
                GROUP_CONCAT(
                  a.name ORDER BY sa.is_main DESC, a.name ASC
                  SEPARATOR ', '
@@ -57,7 +61,8 @@
         LEFT JOIN song_artist sa ON s.id = sa.song_id
         LEFT JOIN artists a ON sa.artist_id = a.id
         WHERE s.title LIKE CONCAT('%', #{title}, '%')
-        GROUP BY s.id, s.title, s.coverUrl, s.duration
+        GROUP BY s.id, s.title, s.coverUrl, s.coverNetworkUrl, s.duration,
+                 s.external_source, s.external_id, s.fileUrl
         LIMIT 10
     </select>
 
@@ -66,7 +71,8 @@
     </select>
 
     <select id="findByArtistIdWithNames" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.SearchSongVO">
-        SELECT s.id, s.title, s.coverUrl, s.duration, s.albumId,
+        SELECT s.id, s.title, s.coverUrl, s.coverNetworkUrl, s.duration, s.albumId,
+               s.external_source AS externalSource, s.external_id AS externalId, s.fileUrl,
                COALESCE(alb.name, '') AS albumName,
                GROUP_CONCAT(
                  a.name ORDER BY sa.is_main DESC, a.name ASC
@@ -76,8 +82,11 @@
         INNER JOIN song_artist sa ON s.id = sa.song_id
         INNER JOIN artists a ON sa.artist_id = a.id
         LEFT JOIN albums alb ON s.albumId = alb.id
-        WHERE sa.artist_id = #{artistId}
-        GROUP BY s.id, s.title, s.coverUrl, s.duration, s.albumId, alb.name
+        WHERE s.id IN (
+            SELECT song_id FROM song_artist WHERE artist_id = #{artistId}
+        )
+        GROUP BY s.id, s.title, s.coverUrl, s.coverNetworkUrl, s.duration, s.albumId,
+                 s.external_source, s.external_id, s.fileUrl, alb.name
         ORDER BY s.createdAt DESC
     </select>
 
@@ -88,5 +97,19 @@
     <update id="updateAlbumIdAndCover">
         UPDATE songs SET albumId = #{albumId}, coverUrl = #{coverUrl} WHERE id = #{songId}
     </update>
+
+    <select id="findByTitleAndArtistName" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
+        SELECT s.* FROM songs s
+        INNER JOIN song_artist sa ON s.id = sa.song_id
+        INNER JOIN artists a ON sa.artist_id = a.id
+        WHERE s.title = #{title}
+          AND a.name = #{artistName}
+          AND sa.is_main = 1
+        LIMIT 1
+    </select>
+
+    <select id="findAllIds" resultType="java.lang.Integer">
+        SELECT id FROM songs
+    </select>
 
 </mapper>

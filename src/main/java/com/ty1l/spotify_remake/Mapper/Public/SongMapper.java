@@ -33,4 +33,17 @@ public interface SongMapper {
     List<Song> findByAlbumId(@Param("albumId") Long albumId);
 
     int updateAlbumIdAndCover(@Param("songId") Integer songId, @Param("albumId") Long albumId, @Param("coverUrl") String coverUrl);
+
+    /**
+     * 按歌名精确匹配 + 主艺术家名匹配，返回第一条匹配的歌曲
+     * @param title 歌曲标题
+     * @param artistName 主艺术家名称（精确匹配 is_main=1 的艺术家）
+     * @return 匹配的歌曲，找不到返回 null
+     */
+    Song findByTitleAndArtistName(@Param("title") String title, @Param("artistName") String artistName);
+
+    /**
+     * 查询所有歌曲 ID（布隆过滤器启动预加载用）
+     */
+    List<Integer> findAllIds();
 }

@@ -22,4 +22,9 @@ public interface ArtistMapper {
     int update(Artist artist);
 
     int deleteById(Integer id);
+
+    /**
+     * 查询所有艺术家 ID（布隆过滤器启动预加载用）
+     */
+    List<Integer> findAllIds();
 }
