@@ -127,9 +127,9 @@ public class FollowService {
         } catch (Exception e) {
             log.warn("getFollowingCount Redis failed: {}", e.getMessage());
         }
-        return followMapper.count(userId, null) > 0
-                ? (int) followMapper.findFollowedArtists(userId).stream().count()
-                : 0;
+        // Redis 空则降级 MySQL
+        List<Artist> artists = followMapper.findFollowedArtists(userId);
+        return artists != null ? artists.size() : 0;
     }
 
     /** 获取用户关注的所有艺人 ID 列表 */
@@ -200,8 +200,8 @@ public class FollowService {
     // ── 缓存失效 ────────────────────────────────────────────────────────
 
     private void invalidateCaches(Long userId, Integer artistId) {
-        cacheService.delete(String.format(CacheService.KEY_HOME, userId));
-        cacheService.delete(String.format(CacheService.KEY_PROFILE, userId));
-        cacheService.delete(String.format(CacheService.KEY_ARTIST, artistId));
+        cacheService.evictBoth(String.format(CacheService.KEY_HOME, userId));
+        cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
+        cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, artistId));
     }
 }

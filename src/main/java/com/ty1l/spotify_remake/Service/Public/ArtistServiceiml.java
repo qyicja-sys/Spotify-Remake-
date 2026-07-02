@@ -102,32 +102,23 @@ public class ArtistServiceiml implements ArtistService {
 
         String cacheKey = String.format(CacheService.KEY_ARTIST, id);
 
-        // 尝试从缓存读取
-        Map<String, Object> cached = cacheService.get(cacheKey, Map.class);
-        if (cached != null) {
-            log.debug("Artist cache hit for id={}", id);
-            return cached;
-        }
+        return cacheService.getOrLoad(cacheKey, Map.class, () -> {
+            log.info("Artist DB query for id={}", id);
+            Artist artist = artistMapper.findById(id);
+            if (artist == null) return null;
 
-        log.info("Artist cache miss for id={}, rebuilding...", id);
+            List<SearchSongVO> songs = songMapper.findByArtistIdWithNames(id);
+            if (songs == null) songs = Collections.emptyList();
 
-        Artist artist = artistMapper.findById(id);
-        if (artist == null) return null;
+            // 月听众数 = max(Redis实时值, DB兜底值)，保证刚播放就可见
+            int monthlyListeners = monthlyListenersService.getMonthlyListeners(id);
 
-        List<SearchSongVO> songs = songMapper.findByArtistIdWithNames(id);
-        if (songs == null) songs = Collections.emptyList();
-
-        // 月听众数 = max(Redis实时值, DB兜底值)，保证刚播放就可见
-        int monthlyListeners = monthlyListenersService.getMonthlyListeners(id);
-
-        Map<String, Object> detail = Map.of(
-                "artist", artist,
-                "songs", songs,
-                "monthlyListeners", monthlyListeners
-        );
-
-        cacheService.set(cacheKey, detail);
-        return detail;
+            return Map.of(
+                    "artist", artist,
+                    "songs", songs,
+                    "monthlyListeners", monthlyListeners
+            );
+        });
     }
 
 }

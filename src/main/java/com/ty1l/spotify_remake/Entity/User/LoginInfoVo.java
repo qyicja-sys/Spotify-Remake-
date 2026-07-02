@@ -13,4 +13,5 @@ public class LoginInfoVo {// 登录信息，传回给前端，不包含密码
     private String nickName;
     private String profilePic;
     private String jwt;
+    private String refreshToken;
 }

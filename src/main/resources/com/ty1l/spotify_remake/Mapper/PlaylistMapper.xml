@@ -21,7 +21,7 @@
     </select>
 
     <select id="findSongsByPlaylistId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.Public.Song">
-        SELECT s.id, s.artistId, s.title, s.coverUrl, s.fileUrl, s.duration, s.createdAt,
+        SELECT s.id, s.artistId, s.title, s.coverUrl, s.coverNetworkUrl, s.fileUrl, s.duration, s.createdAt,
                s.external_source AS externalSource, s.external_id AS externalId FROM songs s
         INNER JOIN playlist_songs ps ON s.id = ps.songId
         WHERE ps.playlistId = #{playlistId}
@@ -29,12 +29,14 @@
     </select>
 
     <select id="findPlaylistSongsByPlaylistId" parameterType="int" resultType="com.ty1l.spotify_remake.Entity.User.PlaylistSongVO">
-        SELECT s.id, s.artistId, s.title, s.coverUrl, s.fileUrl, s.duration, s.createdAt, ps.addedAt,
+        SELECT s.id, s.artistId, s.title, s.coverUrl, s.coverNetworkUrl, s.fileUrl, s.duration, s.createdAt, ps.addedAt,
                s.external_source AS externalSource, s.external_id AS externalId,
-               s.albumId, alb.name AS albumName
+               s.albumId, alb.name AS albumName,
+               a.name AS artistName
         FROM songs s
         INNER JOIN playlist_songs ps ON s.id = ps.songId
         LEFT JOIN albums alb ON s.albumId = alb.id
+        LEFT JOIN artists a ON s.artistId = a.id
         WHERE ps.playlistId = #{playlistId}
         ORDER BY ps.addedAt ASC
     </select>

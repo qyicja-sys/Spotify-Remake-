@@ -21,8 +21,8 @@ public interface PlaybackHistoryMapper {
     // 查询用户关注的艺人数
     int countFollowing(@Param("userId") Long userId);
 
-    // 查询某艺人本月听众数（去重，按 user_playback_history 统计）
-    int countMonthlyListeners(@Param("artistId") Integer artistId);
+    // 查询用户全部播放历史（用于 Redis 冷启动恢复）
+    List<UserPlaybackHistory> selectAllPlaybackHistory(@Param("userId") Long userId);
 
     // 插入播放记录
     int insertPlaybackHistory(UserPlaybackHistory history);

@@ -54,7 +54,7 @@ function redirectToLogin(kickedOut = false) {
 }
 
 function getTokenHeader() {
-  const token = sessionStorage.getItem('jwt')
+  const token = sessionStorage.getItem('jwt') || localStorage.getItem('jwt')
   return token ? { token } : {}
 }
 
@@ -317,6 +317,10 @@ export function followArtist(id) {
   return request('POST', `/spotify/artist/${id}/follow`)
 }
 
+export function getLeaderboard() {
+  return request('GET', '/spotify/leaderboard/global')
+}
+
 export function unfollowArtist(id) {
   return request('DELETE', `/spotify/artist/${id}/follow`)
 }
@@ -408,4 +412,32 @@ export function getLocalLyrics(title) {
 /** 获取外部歌曲歌词 */
 export function getExternalLyrics(source, lyricId) {
   return request('GET', `/spotify/lyrics/external?source=${encodeURIComponent(source)}&lyricId=${encodeURIComponent(lyricId)}`)
+}
+
+// ── Captcha API (direct fetch, no token header — public endpoints) ──────────
+
+export function getCaptcha() {
+  const url = isProxyMode() ? '/captcha/get' : resolveUrl('/captcha/get')
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ captchaType: 'blockPuzzle' }),
+  }).then(async (r) => {
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.repMsg || 'Failed to load captcha')
+    return { data, status: r.status }
+  })
+}
+
+export function checkCaptcha(payload) {
+  const url = isProxyMode() ? '/captcha/check' : resolveUrl('/captcha/check')
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(async (r) => {
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.repMsg || 'Captcha verification failed')
+    return { data, status: r.status }
+  })
 }

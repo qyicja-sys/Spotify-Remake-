@@ -38,31 +38,19 @@ public class AlbumServiceiml implements AlbumService {
             return null;
         }
         String key = String.format(CacheService.KEY_ALBUM, id);
-        Album cached = cacheService.get(key, Album.class);
-        if (cached != null) {
-            log.debug("Album cache hit for id={}", id);
-            return cached;
-        }
-        Album album = albumMapper.findById(id);
-        if (album != null) {
-            cacheService.set(key, album);
-        }
-        return album;
+        return cacheService.getOrLoad(key, Album.class, () -> {
+            log.info("Album DB query for id={}", id);
+            return albumMapper.findById(id);
+        });
     }
 
     @Override
     public List<Album> findByArtistId(Long artistId) {
         String key = String.format(CacheService.KEY_ALBUM_BY_ARTIST, artistId);
-        List<Album> cached = cacheService.getList(key, Album.class);
-        if (cached != null) {
-            log.debug("Album-by-artist cache hit for artistId={}", artistId);
-            return cached;
-        }
-        List<Album> albums = albumMapper.findByArtistId(artistId);
-        if (albums != null) {
-            cacheService.set(key, albums);
-        }
-        return albums;
+        return cacheService.getOrLoadList(key, Album.class, () -> {
+            log.info("Album-by-artist DB query for artistId={}", artistId);
+            return albumMapper.findByArtistId(artistId);
+        });
     }
 
     @Override
@@ -93,13 +81,13 @@ public class AlbumServiceiml implements AlbumService {
         if (album != null) {
             evictAlbumCache(id);
             if (album.getArtistId() != null) {
-                cacheService.delete(String.format(CacheService.KEY_ALBUM_BY_ARTIST, album.getArtistId()));
+                cacheService.evictBoth(String.format(CacheService.KEY_ALBUM_BY_ARTIST, album.getArtistId()));
             }
         }
     }
 
-    /** 使单个专辑缓存失效 */
+    /** 使单个专辑 L1 + L2 缓存失效 */
     private void evictAlbumCache(Long albumId) {
-        cacheService.delete(String.format(CacheService.KEY_ALBUM, albumId));
+        cacheService.evictBoth(String.format(CacheService.KEY_ALBUM, albumId));
     }
 }

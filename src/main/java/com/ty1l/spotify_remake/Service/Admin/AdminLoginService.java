@@ -4,4 +4,5 @@ import com.ty1l.spotify_remake.Entity.Admin.AdminLoginVO;
 
 public interface AdminLoginService {
     AdminLoginVO login(String username, String password);
+    AdminLoginVO refresh(String refreshToken);
 }

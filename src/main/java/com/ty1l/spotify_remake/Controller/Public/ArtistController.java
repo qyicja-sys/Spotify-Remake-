@@ -3,6 +3,7 @@ package com.ty1l.spotify_remake.Controller.Public;
 import com.ty1l.spotify_remake.Entity.Public.Artist;
 import com.ty1l.spotify_remake.Entity.User.User;
 import com.ty1l.spotify_remake.Mapper.User.UserMapper;
+import com.ty1l.spotify_remake.Service.CacheService;
 import com.ty1l.spotify_remake.Service.Public.ArtistService;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
 import com.ty1l.spotify_remake.utility.Result;
@@ -11,10 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +27,9 @@ public class ArtistController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private CacheService cacheService;
 
     @GetMapping
     public Result list() {
@@ -66,6 +66,7 @@ public class ArtistController {
     public Result add(@RequestBody Artist artist) {
         log.info("Add artist: {}", artist);
         artistService.add(artist);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Artist added successfully");
     }
 
@@ -74,6 +75,8 @@ public class ArtistController {
         artist.setId(id);
         log.info("Update artist: {}", artist);
         artistService.update(artist);
+        cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, id));
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Artist updated successfully");
     }
 
@@ -103,36 +106,15 @@ public class ArtistController {
     public Result delete(@PathVariable Integer id) {
         log.info("Delete artist id: {}", id);
         artistService.delete(id);
+        cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, id));
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Artist deleted successfully");
     }
 
     /**
-     * 复制用户头像文件到 artists 目录，返回 artists 的 URL
+     * 复制用户头像到艺术家目录（OSS 上复制，旧本地路径保持兼容）
      */
     private String copyProfilePicToArtists(String profilePic) {
-        if (profilePic == null || profilePic.isBlank()) return null;
-        if (profilePic.contains("/profilePic/artists/")) return profilePic;
-
-        try {
-            String relativePath = profilePic.startsWith("/") ? profilePic.substring(1) : profilePic;
-            Path source = Paths.get("src/main/resources", relativePath);
-            if (!Files.exists(source)) {
-                source = Paths.get("D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources", relativePath);
-            }
-            if (!Files.exists(source)) {
-                return profilePic;
-            }
-
-            String fileName = source.getFileName().toString();
-            Path targetDir = Paths.get("D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/profilePic/artists/");
-            Files.createDirectories(targetDir);
-            Path target = targetDir.resolve(fileName);
-            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-
-            return "/static/datas/profilePic/artists/" + fileName;
-        } catch (Exception e) {
-            log.error("Failed to copy profile pic to artists dir: {}", profilePic, e);
-            return profilePic;
-        }
+        return FileUploadUtil.copyAvatarToArtistDir(profilePic);
     }
 }

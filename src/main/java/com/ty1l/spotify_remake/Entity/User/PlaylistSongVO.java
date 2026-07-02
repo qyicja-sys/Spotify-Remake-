@@ -15,6 +15,7 @@ public class PlaylistSongVO {
     private String artistName;
     private String title;
     private String coverUrl;
+    private String coverNetworkUrl;
     private String fileUrl;
     private Integer duration;
     private LocalDateTime createdAt;

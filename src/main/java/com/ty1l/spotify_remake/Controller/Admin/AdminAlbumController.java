@@ -6,6 +6,7 @@ import com.ty1l.spotify_remake.Entity.Public.Song;
 import com.ty1l.spotify_remake.Mapper.Public.AlbumMapper;
 import com.ty1l.spotify_remake.Mapper.Public.ArtistMapper;
 import com.ty1l.spotify_remake.Mapper.Public.SongMapper;
+import com.ty1l.spotify_remake.Service.CacheService;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
 import com.ty1l.spotify_remake.utility.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,22 @@ public class AdminAlbumController {
 
     @Autowired
     private SongMapper songMapper;
+
+    @Autowired
+    private CacheService cacheService;
+
+    private void evictArtistById(Integer artistId) {
+        if (artistId != null) {
+            cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, artistId));
+            cacheService.evictBoth(String.format(CacheService.KEY_ALBUM_BY_ARTIST, artistId));
+        }
+    }
+
+    private void evictAlbumById(Long albumId) {
+        if (albumId != null) {
+            cacheService.evictBoth(String.format(CacheService.KEY_ALBUM, albumId));
+        }
+    }
 
     /**
      * 获取所有艺术家列表（用于CMS专辑管理首页）
@@ -100,6 +117,7 @@ public class AdminAlbumController {
             album.setReleaseDate(java.time.LocalDate.now());
         }
         albumMapper.insert(album);
+        evictArtistById(album.getArtistId() != null ? album.getArtistId().intValue() : null);
         return Result.success(Map.of("id", album.getId()));
     }
 
@@ -111,6 +129,9 @@ public class AdminAlbumController {
         album.setId(id);
         log.info("Update album: {}", id);
         albumMapper.update(album);
+        evictAlbumById(id);
+        Album current = albumMapper.findById(id);
+        if (current != null) evictArtistById(current.getArtistId() != null ? current.getArtistId().intValue() : null);
         return Result.success("Album updated successfully");
     }
 
@@ -120,6 +141,7 @@ public class AdminAlbumController {
     @DeleteMapping("/{id}")
     public Result delete(@PathVariable Long id) {
         log.info("Delete album: {}", id);
+        Album album = albumMapper.findById(id);
         // 先解除歌曲关联
         List<Song> songs = songMapper.findByAlbumId(id);
         if (songs != null) {
@@ -129,6 +151,8 @@ public class AdminAlbumController {
             }
         }
         albumMapper.deleteById(id);
+        evictAlbumById(id);
+        if (album != null) evictArtistById(album.getArtistId() != null ? album.getArtistId().intValue() : null);
         return Result.success("Album deleted successfully");
     }
 

@@ -5,6 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   base: '/spotify-frontend/',
+  host: '0.0.0.0', // 允许所有 IPv4 地址访问
   build: {
     rollupOptions: {
       input: {

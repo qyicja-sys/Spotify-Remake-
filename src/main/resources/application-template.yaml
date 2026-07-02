@@ -1,0 +1,54 @@
+server:
+  port: 5000
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.100.128:3306/database_spotify
+    username: [username]
+    password: [password]
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: 192.168.100.128
+      port: 6379
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 100
+
+mybatis:
+  mapper-locations: classpath:com/ty1l/spotify_remake/Mapper/*.xml
+  type-aliases-package: com.ty1l.spotify_remake.Entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+aj:
+  captcha:
+    type: blockpuzzle # 验证码类型
+    cache-type: redis # 验证码缓存类型
+    watermark: "MyProject" # 验证码水印
+    aes-status: true # 坐标是否加密
+
+music:
+  external:
+    gdmusic:
+      base-url: ${GDMUSIC_BASE_URL:https://music-api.gdstudio.xyz}
+      source: ${GDMUSIC_SOURCE:netease}
+
+#阿里云OSS
+aliyun:
+  oss:
+    endpoint: https://oss-cn-beijing.aliyuncs.com
+    access-key-id: [access-key-id]
+    access-key-secret: [access-key-secret]
+    bucket-name: [bucket-name]
+    region: [region]

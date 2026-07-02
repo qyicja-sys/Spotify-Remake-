@@ -38,6 +38,12 @@ function extractClientX(event) {
   return event.clientX
 }
 
+function toDataUrl(base64, fallbackType) {
+  if (!base64) return ''
+  if (base64.startsWith('data:')) return base64
+  return 'data:image/' + fallbackType + ';base64,' + base64
+}
+
 function getTrackMaxButtonLeft(track) {
   return track.getBoundingClientRect().width - CAPTCHA_TRACK_BUTTON_SIZE
 }
@@ -135,8 +141,8 @@ async function fetchCaptcha() {
       return
     }
 
-    backgroundImage.value = repData.originalImageBase64 || ''
-    sliderImage.value = repData.jigsawImageBase64 || ''
+    backgroundImage.value = toDataUrl(repData.originalImageBase64, 'png')
+    sliderImage.value = toDataUrl(repData.jigsawImageBase64, 'png')
     token.value = repData.token || ''
     secretKey.value = repData.secretKey || ''
 

@@ -30,8 +30,11 @@ import java.nio.charset.StandardCharsets;
 @Order(1) // 确保在其他 Filter 之前执行
 public class SignedUrlFilter implements Filter {
 
-    // 需要签名保护的路径前缀（歌曲文件）
-    private static final String PROTECTED_PREFIX = "/static/datas/musicResouces/musics/";
+    // 需要签名保护的路径前缀
+    private static final String[] PROTECTED_PREFIXES = {
+        "/static/datas/musicResouces/musics/",       // 本地歌曲文件
+        "/spotify/external/stream-proxy/"             // 外部歌曲流代理
+    };
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
@@ -43,7 +46,14 @@ public class SignedUrlFilter implements Filter {
         String uri = URLDecoder.decode(httpRequest.getRequestURI(), StandardCharsets.UTF_8);
 
         // 只拦截受保护路径下的请求
-        if (!uri.startsWith(PROTECTED_PREFIX)) {
+        boolean protected_ = false;
+        for (String prefix : PROTECTED_PREFIXES) {
+            if (uri.startsWith(prefix)) {
+                protected_ = true;
+                break;
+            }
+        }
+        if (!protected_) {
             chain.doFilter(request, response);
             return;
         }

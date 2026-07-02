@@ -3,6 +3,7 @@ package com.ty1l.spotify_remake.Controller.Public;
 import com.ty1l.spotify_remake.Entity.Public.ExternalTrackVO;
 import com.ty1l.spotify_remake.Service.Public.ExternalMusicService;
 import com.ty1l.spotify_remake.utility.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -26,9 +27,19 @@ public class ExternalMusicController {
         return Result.success(results);
     }
 
+    @GetMapping("/artist-search")
+    public Result artistSearch(@RequestParam("artistName") String artistName) {
+        if (artistName == null || artistName.isBlank()) {
+            return Result.success(java.util.Collections.emptyList());
+        }
+        List<ExternalTrackVO> results = externalMusicService.searchByArtist(artistName.trim());
+        return Result.success(results);
+    }
+
     @GetMapping("/stream-proxy/{source}/{trackId}")
     public void streamProxy(@PathVariable String source,
                             @PathVariable String trackId,
+                            HttpServletRequest request,
                             HttpServletResponse response) {
         String realUrl = externalMusicService.getRealStreamUrl(source, trackId);
         if (realUrl == null) {
@@ -36,10 +47,16 @@ public class ExternalMusicController {
             return;
         }
 
+        // 客户端 Range 请求头（用于支持拖拽进度条 seek）
+        String rangeHeader = request.getHeader("Range");
+
         HttpURLConnection conn = null;
         try {
             // 手动处理重定向，不使用 auto-redirect（避免跨域重定向失败）
             conn = openConnection(realUrl, 5000, 10000);
+            if (rangeHeader != null && !rangeHeader.isEmpty()) {
+                conn.setRequestProperty("Range", rangeHeader);
+            }
             int status = conn.getResponseCode();
 
             // 跟随最多 3 次重定向
@@ -49,19 +66,40 @@ public class ExternalMusicController {
                 conn.disconnect();
                 if (location == null) break;
                 conn = openConnection(location, 5000, 10000);
+                if (rangeHeader != null && !rangeHeader.isEmpty()) {
+                    conn.setRequestProperty("Range", rangeHeader);
+                }
                 status = conn.getResponseCode();
                 redirects++;
             }
 
-            if (status != 200) {
+            if (status != 200 && status != 206) {
                 response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
                 return;
             }
 
+            // 转发响应状态码（206 Partial Content 或 200 OK）
+            response.setStatus(status);
+
             String contentType = conn.getContentType();
             if (contentType == null) contentType = "audio/mpeg";
             response.setContentType(contentType);
-            response.setHeader("Accept-Ranges", "bytes");
+
+            // 转发 Content-Length（浏览器需要它来确定音频总时长和 seek 范围）
+            String contentLength = conn.getHeaderField("Content-Length");
+            if (contentLength != null) {
+                response.setContentLengthLong(Long.parseLong(contentLength));
+            }
+
+            // 转发 Accept-Ranges（告知浏览器支持分段请求）
+            String acceptRanges = conn.getHeaderField("Accept-Ranges");
+            response.setHeader("Accept-Ranges", acceptRanges != null ? acceptRanges : "bytes");
+
+            // 转发 Content-Range（206 响应时必须）
+            String contentRange = conn.getHeaderField("Content-Range");
+            if (contentRange != null) {
+                response.setHeader("Content-Range", contentRange);
+            }
 
             try (InputStream in = conn.getInputStream();
                  OutputStream out = response.getOutputStream()) {

@@ -16,4 +16,7 @@ public class SearchSongVO {
     private String artistName;
     private Integer albumId;
     private String albumName;
+    private String externalSource;
+    private String externalId;
+    private String fileUrl;
 }

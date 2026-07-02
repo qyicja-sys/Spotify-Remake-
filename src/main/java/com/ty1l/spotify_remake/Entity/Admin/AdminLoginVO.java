@@ -11,4 +11,5 @@ public class AdminLoginVO {
     private Integer id;
     private String username;
     private String token;
+    private String refreshToken;
 }

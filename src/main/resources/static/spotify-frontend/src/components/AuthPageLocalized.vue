@@ -5,7 +5,7 @@ import spotifyLogo from '../assets/spotify_242118.svg'
 import playImage from '../assets/鎾斁.png'
 import forwardImage from '../assets/蹇繘.png'
 import musicImage from '../assets/音乐.png'
-import CaptchaVerify from './CaptchaVerify.vue'
+import CaptchaModal from './CaptchaModal.vue'
 import { login, resetPassword, signUp } from '../api/auth'
 
 const languageOptions = [
@@ -677,7 +677,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <CaptchaVerify
+    <CaptchaModal
       :visible="captchaVerifyVisible"
       @close="captchaVerifyVisible = false"
       @success="onCaptchaSuccess"

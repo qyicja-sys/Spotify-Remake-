@@ -21,4 +21,7 @@ public class Song {
     private LocalDateTime createdAt;
     private String externalSource;
     private String externalId;
+    private String lyrics;
+    private String lyricsUrl;     // 歌词URL（外部歌词地址）
+    private String picId;         // 外部封面图片ID
 }

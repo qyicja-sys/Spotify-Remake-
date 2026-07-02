@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Redisson 配置（与 Lettuce 共存，独立连接池）
  *
- * 用于 RedisBloom 布隆过滤器操作，连接池较小以节省资源。
+ * 用于 RedisBloom 布隆过滤器 + 分布式锁操作。
  */
 @Configuration
 public class RedissonConfig {
@@ -26,7 +26,7 @@ public class RedissonConfig {
         Config config = new Config();
         config.useSingleServer()
                 .setAddress("redis://" + host + ":" + port)
-                .setConnectionPoolSize(4)
+                .setConnectionPoolSize(8)
                 .setConnectionMinimumIdleSize(1)
                 .setConnectTimeout(3000)
                 .setRetryAttempts(3);

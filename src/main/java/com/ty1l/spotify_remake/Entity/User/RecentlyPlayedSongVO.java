@@ -14,4 +14,8 @@ public class RecentlyPlayedSongVO {
     private String coverUrl;   // 封面URL
     private Integer duration;  // 时长(秒)
     private String playedAt;   // 最近播放时间
+    private String externalSource; // 外部来源
+    private String externalId;     // 外部ID
+    private String coverNetworkUrl; // 封面URL（网络）
+    private String picId;            // 外部封面图片ID
 }

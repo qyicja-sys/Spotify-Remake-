@@ -3,6 +3,7 @@ package com.ty1l.spotify_remake.Controller.Admin;
 import com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist;
 import com.ty1l.spotify_remake.Entity.User.PlaylistDetailVO;
 import com.ty1l.spotify_remake.Entity.User.PlaylistSongVO;
+import com.ty1l.spotify_remake.Service.CacheService;
 import com.ty1l.spotify_remake.Service.Public.PlaylistService;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
 import com.ty1l.spotify_remake.utility.Result;
@@ -23,6 +24,9 @@ public class AdminPlaylistController {
 
     @Autowired
     private PlaylistService playlistService;
+
+    @Autowired
+    private CacheService cacheService;
 
     @GetMapping
     public Result list(@RequestParam(required = false) Integer type,
@@ -63,6 +67,7 @@ public class AdminPlaylistController {
     public Result add(@RequestBody AdminPlaylist playlist) {
         log.info("Add playlist: {}", playlist);
         playlistService.add(playlist);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Playlist created successfully");
     }
 
@@ -71,6 +76,7 @@ public class AdminPlaylistController {
         playlist.setId(id);
         log.info("Update playlist: {}", playlist);
         playlistService.update(playlist);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Playlist updated successfully");
     }
 
@@ -78,6 +84,7 @@ public class AdminPlaylistController {
     public Result delete(@PathVariable Integer id) {
         log.info("Delete playlist id: {}", id);
         playlistService.delete(id);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Playlist deleted successfully");
     }
 
@@ -86,6 +93,7 @@ public class AdminPlaylistController {
         Integer songId = body.get("songId");
         log.info("Add song {} to playlist {}", songId, id);
         playlistService.addSong(id, songId);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Song added to playlist");
     }
 
@@ -93,6 +101,7 @@ public class AdminPlaylistController {
     public Result removeSong(@PathVariable Integer id, @PathVariable Integer songId) {
         log.info("Remove song {} from playlist {}", songId, id);
         playlistService.removeSong(id, songId);
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
         return Result.success("Song removed from playlist");
     }
 

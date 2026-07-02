@@ -56,7 +56,7 @@ public class MonthlyListenersService {
      * @param userId   用户 ID
      * @param artistId 艺人 ID
      */
-    public void recordListen(Long userId, Long artistId) {
+    public void recordListen(Long userId, Integer artistId) {
         try {
             String month = currentMonth();
             String artistKey = String.format(KEY_LISTENERS_ARTIST, month, artistId);
@@ -67,6 +67,8 @@ public class MonthlyListenersService {
             if (added != null && added > 0) {
                 // 首次收听：标记该艺人为活跃
                 redis.opsForSet().add(activeKey, String.valueOf(artistId));
+                // 清除艺人详情缓存，下次请求用最新月听众数重建
+                cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, artistId));
                 log.debug("New monthly listener: userId={} artistId={} month={}", userId, artistId, month);
             }
 
@@ -77,6 +79,34 @@ public class MonthlyListenersService {
         } catch (Exception e) {
             log.warn("recordListen failed: userId={} artistId={} error={}", userId, artistId, e.getMessage());
         }
+    }
+
+    // ── 实时查询 ────────────────────────────────────────────────────────
+
+    /**
+     * 获取某艺人的月听众数（Redis SET 实时值 + DB 兜底取最大值）。
+     * 调用方可直接用于展示，无需等定时同步。
+     */
+    public int getMonthlyListeners(Integer artistId) {
+        int dbCount = 0;
+        // 先从 DB 读
+        Artist artist = artistMapper.findById(artistId);
+        if (artist != null && artist.getMonthlyListeners() != null) {
+            dbCount = artist.getMonthlyListeners();
+        }
+        // 再从 Redis 读实时值
+        int redisCount = 0;
+        try {
+            String month = currentMonth();
+            String artistKey = String.format(KEY_LISTENERS_ARTIST, month, artistId);
+            Long size = redis.opsForSet().size(artistKey);
+            if (size != null) {
+                redisCount = size.intValue();
+            }
+        } catch (Exception e) {
+            log.warn("getMonthlyListeners Redis read failed for artistId={}: {}", artistId, e.getMessage());
+        }
+        return Math.max(redisCount, dbCount);
     }
 
     // ── 定时同步 ────────────────────────────────────────────────────────
@@ -120,7 +150,7 @@ public class MonthlyListenersService {
 
                 // 清除 artist 缓存，下次请求时重建（拿到最新 monthlyListeners）
                 String cacheKey = String.format(CacheService.KEY_ARTIST, artistId);
-                cacheService.delete(cacheKey);
+                cacheService.evictBoth(cacheKey);
 
                 updated++;
             } catch (Exception e) {

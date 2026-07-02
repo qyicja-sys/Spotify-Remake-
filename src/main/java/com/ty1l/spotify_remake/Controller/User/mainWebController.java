@@ -17,11 +17,14 @@ import com.ty1l.spotify_remake.Mapper.Public.SongMapper;
 import com.ty1l.spotify_remake.Mapper.User.CollectedPlaylistMapper;
 import com.ty1l.spotify_remake.Mapper.User.LoginMapper;
 import com.ty1l.spotify_remake.Mapper.User.PlaybackHistoryMapper;
-import com.ty1l.spotify_remake.Mapper.User.UserArtistFollowMapper;
 import com.ty1l.spotify_remake.Mapper.User.UserMapper;
+import com.ty1l.spotify_remake.Service.CacheService;
+import com.ty1l.spotify_remake.Service.Public.ArtistService;
+import com.ty1l.spotify_remake.Service.Public.FollowService;
 import com.ty1l.spotify_remake.Service.Public.SongService;
 import com.ty1l.spotify_remake.Service.User.LoginService;
 import com.ty1l.spotify_remake.Service.User.MainWebService;
+import com.ty1l.spotify_remake.Service.User.PlaybackHistoryService;
 import com.ty1l.spotify_remake.Service.User.ProfileService;
 import com.ty1l.spotify_remake.utility.BaseContext;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
@@ -57,7 +60,13 @@ public class mainWebController {
     private MainWebService mainWebService;
 
     @Autowired
+    private ArtistService artistService;
+
+    @Autowired
     private ProfileService profileService;
+
+    @Autowired
+    private CacheService cacheService;
 
     @Autowired
     private SongService songService;
@@ -75,10 +84,13 @@ public class mainWebController {
     private CollectedPlaylistMapper collectedPlaylistMapper;
 
     @Autowired
-    private UserArtistFollowMapper userArtistFollowMapper;
+    private PlaybackHistoryMapper playbackHistoryMapper;
 
     @Autowired
-    private PlaybackHistoryMapper playbackHistoryMapper;
+    private FollowService followService;
+
+    @Autowired
+    private PlaybackHistoryService playbackHistoryService;
 
     @GetMapping("/home")
     public ResponseEntity<Result> home(@RequestHeader(value = "token", required = false) String token) {
@@ -87,37 +99,19 @@ public class mainWebController {
         }
         try {
             Claims claims = JwtGenerate.parseJwt(token);
-            Integer userId = Integer.valueOf(claims.get("id").toString());
+            Integer userId = Integer.valueOf(claims.get("userId") != null ? claims.get("userId").toString() : claims.get("id").toString());
 
-            // 查询用户信息
+            // 查询用户基本信息（不走缓存，轻量查询）
             User user = userMapper.findById(userId.longValue());
-            LoginInfoVo userInfo = null;
+
+            // 从缓存/数据库获取主页数据
+            HomeDashboardVO vo = mainWebService.getHomeDashboard(userId.longValue());
+
+            // 填充用户信息（含当前 token，不从缓存取）
             if (user != null) {
-                userInfo = new LoginInfoVo(user.getEmail(), user.getNickName(), user.getProfilePic(), token);
+                vo.setUserInfo(new LoginInfoVo(user.getEmail(), user.getNickName(), user.getProfilePic(), token, null));
             }
 
-            List<PlaylistBriefVO> myPlaylists = loginService.completePlaylistCoverUrl(loginMapper.PackageMyPlaylists(userId));
-            List<PlaylistBriefVO> systemPlaylists = loginService.completePlaylistCoverUrl(loginMapper.PackageSystemPlaylists());
-
-            // 查询用户收藏的歌单，转换为 PlaylistBriefVO
-            List<AdminPlaylist> collectedRaw = collectedPlaylistMapper.findCollectedPlaylistsByUserId(userId.longValue());
-            List<PlaylistBriefVO> collectedPlaylists = collectedRaw.stream().map(p -> {
-                PlaylistBriefVO vo = new PlaylistBriefVO();
-                vo.setId(p.getId());
-                try { vo.setUserId(Integer.valueOf(p.getUserId())); } catch (Exception ignored) {}
-                vo.setName(p.getTitle());
-                vo.setProfile(p.getProfile());
-                vo.setCoverUrl(p.getCoverUrl());
-                vo.setType(p.getType());
-                vo.setIsPrivate(p.getIsPrivate());
-                return vo;
-            }).collect(java.util.stream.Collectors.toList());
-            collectedPlaylists = loginService.completePlaylistCoverUrl(collectedPlaylists);
-
-            // 查询用户关注的艺人
-            List<Artist> followedArtists = userArtistFollowMapper.findFollowedArtists(userId.longValue());
-
-            HomeDashboardVO vo = new HomeDashboardVO(userInfo, myPlaylists, systemPlaylists, collectedPlaylists, followedArtists);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
                     .header(HttpHeaders.PRAGMA, "no-cache")
@@ -136,6 +130,7 @@ public class mainWebController {
         }
         try {
             PlaylistBriefVO playlist = mainWebService.createPlaylist(userId);
+            cacheService.evictBoth(String.format(CacheService.KEY_HOME, userId));
             return ResponseEntity.ok(Result.success(playlist));
         } catch (Exception e) {
             log.error("创建歌单失败", e);
@@ -170,6 +165,7 @@ public class mainWebController {
         }
         try {
             profileService.updateNickName(userId, nickName.trim());
+            cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
             return ResponseEntity.ok(Result.success());
         } catch (Exception e) {
             log.error("更新昵称失败", e);
@@ -188,6 +184,7 @@ public class mainWebController {
         }
         try {
             String profilePicUrl = profileService.updateProfilePic(userId, file);
+            cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
             return ResponseEntity.ok(Result.success(Map.of("profilePic", profilePicUrl)));
         } catch (Exception e) {
             log.error("更新头像失败", e);
@@ -207,6 +204,7 @@ public class mainWebController {
         }
         try {
             profileService.registerArtist(userId, nickName.trim());
+            cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
             return ResponseEntity.ok(Result.success());
         } catch (RuntimeException e) {
             log.warn("注册艺术家失败: {}", e.getMessage());
@@ -234,18 +232,11 @@ public class mainWebController {
     @GetMapping("/artist/{id}")
     public ResponseEntity<Result> getArtistDetail(@PathVariable Integer id) {
         try {
-            Artist artist = artistMapper.findById(id);
-            if (artist == null) {
+            Map<String, Object> detail = artistService.getArtistDetail(id);
+            if (detail == null) {
                 return ResponseEntity.badRequest().body(Result.error("艺术家不存在"));
             }
-            List<SearchSongVO> songs = songMapper.findByArtistIdWithNames(id);
-            if (songs == null) songs = Collections.emptyList();
-            int monthlyListeners = playbackHistoryMapper.countMonthlyListeners(id);
-            return ResponseEntity.ok(Result.success(Map.of(
-                    "artist", artist,
-                    "songs", songs,
-                    "monthlyListeners", monthlyListeners
-            )));
+            return ResponseEntity.ok(Result.success(detail));
         } catch (Exception e) {
             log.error("获取艺术家详情失败", e);
             return ResponseEntity.status(500).body(Result.error("获取艺术家详情失败"));
@@ -269,7 +260,7 @@ public class mainWebController {
                     && artist.getName().equals(user.getNickName())) {
                 return ResponseEntity.badRequest().body(Result.error("不能关注自己"));
             }
-            userArtistFollowMapper.insert(userId, id);
+            followService.follow(userId, id);
             return ResponseEntity.ok(Result.success());
         } catch (Exception e) {
             log.error("关注艺术家失败", e);
@@ -284,7 +275,7 @@ public class mainWebController {
             return ResponseEntity.status(401).body(Result.errorClient("NOT_LOGIN"));
         }
         try {
-            userArtistFollowMapper.delete(userId, id);
+            followService.unfollow(userId, id);
             return ResponseEntity.ok(Result.success());
         } catch (Exception e) {
             log.error("取消关注艺术家失败", e);
@@ -299,7 +290,7 @@ public class mainWebController {
             return ResponseEntity.status(401).body(Result.errorClient("NOT_LOGIN"));
         }
         try {
-            boolean followed = userArtistFollowMapper.count(userId, id) > 0;
+            boolean followed = followService.isFollowing(userId, id);
             return ResponseEntity.ok(Result.success(Map.of("followed", followed)));
         } catch (Exception e) {
             log.error("检查关注状态失败", e);
@@ -374,6 +365,9 @@ public class mainWebController {
             }
 
             log.info("艺术家 {} 上传了歌曲: {}", artist.getName(), title.trim());
+            cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, artist.getId()));
+            cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
+            cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
             return ResponseEntity.ok(Result.success(Map.of(
                     "songId", song.getId(),
                     "coverUrl", coverUrl,
@@ -382,6 +376,34 @@ public class mainWebController {
         } catch (Exception e) {
             log.error("上传歌曲失败", e);
             return ResponseEntity.status(500).body(Result.error("上传歌曲失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 记录播放历史（前端异步调用）
+     *
+     * 前端 Pinia store 乐观更新后，fire-and-forget 此接口。
+     * 后端同步写 Redis ZSET（~1ms），异步落库 MySQL。
+     *
+     * @param body { "songId": 123 }
+     */
+    @PostMapping("/playback/record")
+    public ResponseEntity<Result> recordPlayback(@RequestBody Map<String, Object> body) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Result.errorClient("NOT_LOGIN"));
+        }
+        try {
+            Integer songId = body.get("songId") != null
+                    ? ((Number) body.get("songId")).intValue() : null;
+            if (songId == null) {
+                return ResponseEntity.badRequest().body(Result.errorClient("songId 不能为空"));
+            }
+            playbackHistoryService.recordPlayback(userId, songId);
+            return ResponseEntity.ok(Result.success());
+        } catch (Exception e) {
+            log.warn("记录播放历史失败: {}", e.getMessage());
+            return ResponseEntity.ok(Result.success()); // 静默失败，不影响前端播放
         }
     }
 }

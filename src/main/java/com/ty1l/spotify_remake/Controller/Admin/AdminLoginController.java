@@ -26,4 +26,12 @@ public class AdminLoginController {
         AdminLoginVO vo = adminLoginService.login(username, password);
         return Result.success(vo);
     }
+
+    @PostMapping("/token/refresh")
+    public Result refreshToken(@RequestBody Map<String, String> map) {
+        String refreshToken = map.get("refreshToken");
+        log.info("Admin token refresh requested");
+        AdminLoginVO vo = adminLoginService.refresh(refreshToken);
+        return Result.success(vo);
+    }
 }

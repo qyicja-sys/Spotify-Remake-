@@ -38,16 +38,10 @@ public class SongServiceiml implements SongService {
             return null;
         }
         String key = String.format(CacheService.KEY_SONG, id);
-        Song cached = cacheService.get(key, Song.class);
-        if (cached != null) {
-            log.debug("Song cache hit for id={}", id);
-            return cached;
-        }
-        Song song = songMapper.findById(id);
-        if (song != null) {
-            cacheService.set(key, song);
-        }
-        return song;
+        return cacheService.getOrLoad(key, Song.class, () -> {
+            log.info("Song DB query for id={}", id);
+            return songMapper.findById(id);
+        });
     }
 
     @Override
@@ -72,14 +66,14 @@ public class SongServiceiml implements SongService {
     @Override
     public void update(Song song) {
         songMapper.update(song);
-        // 更新后使缓存失效
-        cacheService.delete(String.format(CacheService.KEY_SONG, song.getId()));
+        // 更新后使 L1 + L2 缓存失效
+        cacheService.evictBoth(String.format(CacheService.KEY_SONG, song.getId()));
     }
 
     @Override
     public void delete(Integer id) {
         songMapper.deleteById(id);
-        // 删除后使缓存失效
-        cacheService.delete(String.format(CacheService.KEY_SONG, id));
+        // 删除后使 L1 + L2 缓存失效
+        cacheService.evictBoth(String.format(CacheService.KEY_SONG, id));
     }
 }

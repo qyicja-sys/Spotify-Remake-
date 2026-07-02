@@ -1,223 +1,238 @@
 package com.ty1l.spotify_remake.utility;
 
+import com.aliyun.oss.OSS;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.util.UUID;
 
+/**
+ * 文件上传工具类 — 所有上传走阿里云 OSS。
+ * 原本地文件存储实现已禁用。
+ */
 public class FileUploadUtil {
 
-    private static final String COVER_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/musicResouces/music_cover/songs/";
-    private static final String MUSIC_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/musicResouces/musics/";
-    private static final String PLAYLIST_COVER_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/musicResouces/music_cover/daliy/";
-    private static final String ARTIST_AVATAR_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/profilePic/artists/";
-    private static final String USER_PROFILE_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/profilePic/";
-    private static final String PERSONAL_PLAYLIST_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/musicResouces/music_cover/personal/";
-    private static final String ALBUM_COVER_DIR = "D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/musicResouces/music_cover/albums/";
+    private static OSS ossClient;
+    private static String bucketName;
+    private static String endpoint;
 
     /**
-     * 保存歌单封面图片，使用管理员指定的文件名
+     * 由 Spring 容器在 Bean 初始化后注入（通过 OssConfig 调用）
+     */
+    public static void init(OSS oss, String bucket, String ep) {
+        ossClient = oss;
+        bucketName = bucket;
+        endpoint = ep;
+    }
+
+    private static String buildOssUrl(String objectKey) {
+        // https://<bucket>.<endpoint-host>/<objectKey>
+        String host = endpoint.replace("https://", "").replace("http://", "");
+        return "https://" + bucketName + "." + host + "/" + objectKey;
+    }
+
+    // ──────────────────────────────────────────────
+    // OSS 目录前缀
+    // ──────────────────────────────────────────────
+    private static final String PREFIX_COVER_SONGS    = "datas/musicResouces/music_cover/songs/";
+    private static final String PREFIX_MUSIC          = "datas/musicResouces/musics/";
+    private static final String PREFIX_COVER_PLAYLIST = "datas/musicResouces/music_cover/daliy/";
+    private static final String PREFIX_COVER_ALBUM    = "datas/musicResouces/music_cover/albums/";
+    private static final String PREFIX_COVER_PERSONAL = "datas/musicResouces/music_cover/personal/";
+    private static final String PREFIX_AVATAR_ARTIST  = "datas/profilePic/artists/";
+    private static final String PREFIX_AVATAR_USER    = "datas/profilePic/";
+
+    // ═══════════════════════════════════════════════
+    // 公开方法（签名不变，控制器无需修改）
+    // ═══════════════════════════════════════════════
+
+    /**
+     * 上传歌单封面
      */
     public static String savePlaylistCover(MultipartFile file, String customName) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
-        }
-
-        String originalName = file.getOriginalFilename();
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
-
-        Path dir = Paths.get(PLAYLIST_COVER_DIR);
-        Files.createDirectories(dir);
-        String fileName = sanitize(customName) + ext;
-        Path target = dir.resolve(fileName);
-        if (Files.exists(target)) {
-            fileName = sanitize(customName) + "_" + UUID.randomUUID().toString().substring(0, 6) + ext;
-            target = dir.resolve(fileName);
-        }
-
-        file.transferTo(target.toFile());
-        return "/static/datas/musicResouces/music_cover/daliy/" + fileName;
+        if (file == null || file.isEmpty()) return null;
+        String ext = getExtension(file.getOriginalFilename());
+        String objectKey = PREFIX_COVER_PLAYLIST + sanitize(customName) + ext;
+        objectKey = avoidOverwrite(objectKey);
+        upload(file, objectKey);
+        return buildOssUrl(objectKey);
     }
 
     /**
-     * 保存封面图片，文件名格式：歌手名 - 歌曲名.ext
+     * 上传歌曲封面
      */
     public static String saveCover(MultipartFile file, String artistName, String songTitle) throws IOException {
-        return saveFile(file, COVER_DIR, artistName, songTitle,
-                "/static/datas/musicResouces/music_cover/songs/");
+        if (file == null || file.isEmpty()) return null;
+        String objectKey = buildSongKey(PREFIX_COVER_SONGS, file.getOriginalFilename(), artistName, songTitle);
+        upload(file, objectKey);
+        return buildOssUrl(objectKey);
     }
 
     /**
-     * 保存音频文件，文件名格式：歌手名 - 歌曲名.ext
+     * 上传音乐文件
      */
     public static String saveMusic(MultipartFile file, String artistName, String songTitle) throws IOException {
-        return saveFile(file, MUSIC_DIR, artistName, songTitle,
-                "/static/datas/musicResouces/musics/");
+        if (file == null || file.isEmpty()) return null;
+        String objectKey = buildSongKey(PREFIX_MUSIC, file.getOriginalFilename(), artistName, songTitle);
+        upload(file, objectKey);
+        return buildOssUrl(objectKey);
     }
 
-    private static String saveFile(MultipartFile file, String dirPath,
-                                   String artistName, String songTitle,
-                                   String urlPrefix) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
+    /**
+     * 上传艺术家头像，同时存一份到用户头像目录。
+     * @return [artistAvatarUrl, userProfilePicUrl]
+     */
+    public static String[] saveArtistAvatar(MultipartFile file, String artistName) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String ext = getExtension(file.getOriginalFilename());
+        String fileName = sanitize(artistName) + ext;
+
+        // artists 目录
+        String artistKey = PREFIX_AVATAR_ARTIST + fileName;
+        upload(file, artistKey);
+
+        // users 目录（复制同一份）
+        String userKey = PREFIX_AVATAR_USER + fileName;
+        try (InputStream in = file.getInputStream()) {
+            ossClient.putObject(bucketName, userKey, in);
         }
 
-        String originalName = file.getOriginalFilename();
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
+        return new String[]{ buildOssUrl(artistKey), buildOssUrl(userKey) };
+    }
 
+    /**
+     * 上传用户头像，文件名为 [username].jpg
+     */
+    public static String saveUserProfilePic(MultipartFile file, String username) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String ext = getExtension(file.getOriginalFilename());
+        if (ext.isEmpty()) ext = ".jpg";
+        String objectKey = PREFIX_AVATAR_USER + sanitize(username) + ext;
+        upload(file, objectKey); // 覆盖旧头像
+        return buildOssUrl(objectKey);
+    }
+
+    /**
+     * 上传用户自建歌单封面
+     */
+    public static String savePersonalPlaylistCover(MultipartFile file, Long userId, Integer playlistId) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String ext = getExtension(file.getOriginalFilename());
+        if (ext.isEmpty()) ext = ".jpg";
+        String objectKey = PREFIX_COVER_PERSONAL + userId + "_" + playlistId + ext;
+        upload(file, objectKey); // 覆盖旧封面
+        return buildOssUrl(objectKey);
+    }
+
+    /**
+     * 上传专辑封面
+     */
+    public static String saveAlbumCover(MultipartFile file, String albumName) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String ext = getExtension(file.getOriginalFilename());
+        String objectKey = PREFIX_COVER_ALBUM + sanitize(albumName) + ext;
+        objectKey = avoidOverwrite(objectKey);
+        upload(file, objectKey);
+        return buildOssUrl(objectKey);
+    }
+
+    // ═══════════════════════════════════════════════
+    // 内部工具方法
+    // ═══════════════════════════════════════════════
+
+    private static void upload(MultipartFile file, String objectKey) throws IOException {
+        try (InputStream in = file.getInputStream()) {
+            ossClient.putObject(bucketName, objectKey, in);
+        }
+    }
+
+    private static String buildSongKey(String prefix, String originalName, String artistName, String songTitle) {
+        String ext = getExtension(originalName);
         String baseName;
         if (artistName != null && !artistName.isBlank()) {
             baseName = sanitize(artistName) + " - " + sanitize(songTitle);
         } else {
             baseName = sanitize(songTitle);
         }
-
-        // 如果同名文件已存在，加随机后缀避免覆盖
-        Path dir = Paths.get(dirPath);
-        Files.createDirectories(dir);
-        String fileName = baseName + ext;
-        Path target = dir.resolve(fileName);
-        if (Files.exists(target)) {
-            fileName = baseName + "_" + UUID.randomUUID().toString().substring(0, 6) + ext;
-            target = dir.resolve(fileName);
-        }
-
-        file.transferTo(target.toFile());
-        return urlPrefix + fileName;
+        return prefix + baseName + ext;
     }
 
     /**
-     * 保存艺术家头像，同时复制一份到 user profilePic 目录
-     * 文件名与艺术家 name 一致
-     * @return 数组: [artistAvatarUrl, userProfilePicUrl]
+     * 如果 OSS 上已存在同名对象，加随机后缀避免覆盖
      */
-    public static String[] saveArtistAvatar(MultipartFile file, String artistName) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
+    private static String avoidOverwrite(String objectKey) {
+        if (ossClient.doesObjectExist(bucketName, objectKey)) {
+            int dot = objectKey.lastIndexOf('.');
+            String base = dot > 0 ? objectKey.substring(0, dot) : objectKey;
+            String ext  = dot > 0 ? objectKey.substring(dot) : "";
+            objectKey = base + "_" + UUID.randomUUID().toString().substring(0, 6) + ext;
         }
+        return objectKey;
+    }
 
-        String originalName = file.getOriginalFilename();
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
+    private static String getExtension(String filename) {
+        if (filename != null && filename.contains(".")) {
+            return filename.substring(filename.lastIndexOf("."));
         }
-
-        String fileName = sanitize(artistName) + ext;
-
-        // 保存到 artists 目录
-        Path artistDir = Paths.get(ARTIST_AVATAR_DIR);
-        Files.createDirectories(artistDir);
-        Path artistTarget = artistDir.resolve(fileName);
-        file.transferTo(artistTarget.toFile());
-
-        // 复制到 user profilePic 目录
-        Path userDir = Paths.get(USER_PROFILE_DIR);
-        Files.createDirectories(userDir);
-        Path userTarget = userDir.resolve(fileName);
-        Files.copy(artistTarget, userTarget, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-        String artistUrl = "/static/datas/profilePic/artists/" + fileName;
-        String userUrl = "/static/datas/profilePic/" + fileName;
-        return new String[]{artistUrl, userUrl};
+        return "";
     }
 
     /**
-     * 保存用户头像，文件名为 [username].jpg
-     * @return 相对路径，如 /static/datas/profilePic/username.jpg
+     * 将用户头像复制到艺术家头像目录（OSS 上复制对象）。
+     * 如果 URL 是 OSS 地址，在 OSS 内复制；如果是旧本地路径，尝试从本地文件上传到 OSS。
+     * @return 艺术家头像 OSS URL
      */
-    public static String saveUserProfilePic(MultipartFile file, String username) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
+    public static String copyAvatarToArtistDir(String existingUrl) {
+        if (existingUrl == null || existingUrl.isBlank()) return null;
+        if (existingUrl.contains("/avatars/artists/")) return existingUrl;
+
+        String sourceKey = extractOssKey(existingUrl);
+        if (sourceKey != null) {
+            // OSS URL → OSS 内复制
+            String fileName = sourceKey.substring(sourceKey.lastIndexOf('/') + 1);
+            String destKey = PREFIX_AVATAR_ARTIST + fileName;
+            try {
+                ossClient.copyObject(bucketName, sourceKey, bucketName, destKey);
+                return buildOssUrl(destKey);
+            } catch (Exception e) {
+                // 复制失败，回退原 URL
+                return existingUrl;
+            }
         }
-
-        String originalName = file.getOriginalFilename();
-        String ext = ".jpg";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
-
-        String fileName = sanitize(username) + ext;
-        Path dir = Paths.get(USER_PROFILE_DIR);
-        Files.createDirectories(dir);
-        Path target = dir.resolve(fileName);
-
-        // 如果已存在同名文件，先删除再写入（覆盖旧头像）
-        if (Files.exists(target)) {
-            Files.delete(target);
-        }
-
-        file.transferTo(target.toFile());
-        return "/static/datas/profilePic/" + fileName;
+        // 旧本地路径 → 返回原路径（本地文件 + WebConfig 仍能访问）
+        return existingUrl;
     }
 
     /**
-     * 保存用户自建歌单封面，文件名为 [userId]_[playlistId].ext
-     * @return 相对路径，如 /static/datas/musicResouces/music_cover/personal/1_2.jpg
+     * 判断 URL 是否是当前 OSS bucket 的地址，是则提取 objectKey
      */
-    public static String savePersonalPlaylistCover(MultipartFile file, Long userId, Integer playlistId) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
+    private static String extractOssKey(String url) {
+        if (url == null) return null;
+        String host = endpoint.replace("https://", "").replace("http://", "");
+        String prefix = "https://" + bucketName + "." + host + "/";
+        if (url.startsWith(prefix)) {
+            return url.substring(prefix.length());
         }
-
-        String originalName = file.getOriginalFilename();
-        String ext = ".jpg";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
+        // 也兼容不带协议的短格式
+        prefix = bucketName + "." + host + "/";
+        if (url.contains(prefix)) {
+            return url.substring(url.indexOf(prefix) + prefix.length());
         }
-
-        String fileName = userId + "_" + playlistId + ext;
-        Path dir = Paths.get(PERSONAL_PLAYLIST_DIR);
-        Files.createDirectories(dir);
-        Path target = dir.resolve(fileName);
-
-        // 覆盖旧封面
-        if (Files.exists(target)) {
-            Files.delete(target);
-        }
-
-        file.transferTo(target.toFile());
-        return "/static/datas/musicResouces/music_cover/personal/" + fileName;
-    }
-
-    /**
-     * 保存专辑封面图片，文件名格式：专辑名.ext
-     */
-    public static String saveAlbumCover(MultipartFile file, String albumName) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
-        }
-
-        String originalName = file.getOriginalFilename();
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
-
-        Path dir = Paths.get(ALBUM_COVER_DIR);
-        Files.createDirectories(dir);
-        String fileName = sanitize(albumName) + ext;
-        Path target = dir.resolve(fileName);
-        if (Files.exists(target)) {
-            fileName = sanitize(albumName) + "_" + UUID.randomUUID().toString().substring(0, 6) + ext;
-            target = dir.resolve(fileName);
-        }
-
-        file.transferTo(target.toFile());
-        return "/static/datas/musicResouces/music_cover/albums/" + fileName;
+        return null;
     }
 
     private static String sanitize(String name) {
         if (name == null) return "unknown";
         return name.replaceAll("[/\\\\:*?\"<>|]", "_").trim();
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 原本地文件存储实现 — 已禁用
+    // 如需回退，取消以下注释并恢复旧方法签名
+    // ═══════════════════════════════════════════════════════════════
+    //
+    // private static final String COVER_DIR = "D:/javaedit/.../music_cover/songs/";
+    // private static final String MUSIC_DIR = "D:/javaedit/.../musics/";
+    // ... (旧实现已移除，见 git 历史 004c52e)
 }

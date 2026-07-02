@@ -3,9 +3,13 @@ package com.ty1l.spotify_remake.Service.User;
 import com.ty1l.spotify_remake.Entity.Admin.AdminPlaylist;
 import com.ty1l.spotify_remake.Entity.Public.ExternalTrackVO;
 import com.ty1l.spotify_remake.Entity.Public.Song;
+import com.ty1l.spotify_remake.Entity.Public.SearchSongVO;
+import java.util.List;
+import java.util.Locale;
 import com.ty1l.spotify_remake.Mapper.Public.PlaylistMapper;
 import com.ty1l.spotify_remake.Mapper.Public.SongMapper;
 import com.ty1l.spotify_remake.Mapper.User.CollectedPlaylistMapper;
+import com.ty1l.spotify_remake.Service.User.UserPlaylistService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -35,21 +39,49 @@ public class UserPlaylistServiceiml implements UserPlaylistService {
         if (existing != null) {
             songId = existing.getId();
         } else {
-            // 导入外部歌曲到 songs 表
-            Song song = new Song();
-            song.setTitle(track.getTitle());
-            song.setCoverUrl(track.getCoverUrl());
-            song.setDuration(track.getDuration());
-            song.setFileUrl(null); // 外部歌曲无本地文件
-            song.setExternalSource(track.getSource());
-            song.setExternalId(track.getExternalId());
-            songMapper.insert(song);
-            songId = song.getId();
+            // 模糊匹配：检查本地是否已有同名歌曲（优先保留本地）
+            String normalizedExtTitle = normalizeTitle(track.getTitle());
+            List<SearchSongVO> localMatches = songMapper.searchWithTitle(normalizedExtTitle);
+            Song matchedLocal = null;
+            for (SearchSongVO local : localMatches) {
+                if (normalizeTitle(local.getTitle()).equals(normalizedExtTitle)) {
+                    matchedLocal = songMapper.findById(local.getId());
+                    break;
+                }
+            }
+            if (matchedLocal != null) {
+                // 本地已有相似歌曲，直接用本地歌曲
+                songId = matchedLocal.getId();
+            } else {
+                // 导入外部歌曲到 songs 表
+                Song song = new Song();
+                song.setTitle(track.getTitle());
+                song.setCoverUrl(track.getCoverUrl());
+                song.setDuration(track.getDuration() != null ? track.getDuration() : 0);
+                song.setFileUrl(""); // 外部歌曲无本地文件
+                song.setExternalSource(track.getSource());
+                song.setExternalId(track.getExternalId());
+                songMapper.insert(song);
+                songId = song.getId();
+            }
         }
         // 添加到已点赞歌单
         AdminPlaylist likedPlaylist = getLikedPlaylist(userId);
         playlistMapper.addSong(likedPlaylist.getId(), songId);
         return songId;
+    }
+
+    /** 标题标准化：去括号注释、feat合作、版本标记等 */
+    private String normalizeTitle(String title) {
+        if (title == null) return "";
+        return title.toLowerCase(Locale.ROOT)
+            .replaceAll("\\(\\s*explicit\\s*\\)|\\[\\s*explicit\\s*\\]|\\(\\s*clean\\s*\\)|\\[\\s*clean\\s*\\]", "")
+            .replaceAll("\\(\\s*remaster(?:ed)?\\s*(?:\\d{4})?\\s*\\)", "")
+            .replaceAll("\\(\\s*feat\\.?.*?\\)|\\(\\s*ft\\.?.*?\\)|feat\\..*?(?=\\)|$)", "")
+            .replaceAll("\\s*-\\s*explicit|\\s*-\\s*clean", "")
+            .replaceAll("[^a-z0-9\\s]", "")
+            .replaceAll("\\s+", " ")
+            .trim();
     }
 
     @Override
@@ -174,3 +206,4 @@ public class UserPlaylistServiceiml implements UserPlaylistService {
         playlistMapper.update(update);
     }
 }
+

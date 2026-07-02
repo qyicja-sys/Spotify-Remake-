@@ -11,15 +11,14 @@ import com.ty1l.spotify_remake.Mapper.Public.SongArtistMapper;
 import com.ty1l.spotify_remake.Mapper.Public.SongMapper;
 import com.ty1l.spotify_remake.Mapper.User.PlaybackHistoryMapper;
 import com.ty1l.spotify_remake.Service.CacheService;
+import com.ty1l.spotify_remake.Service.Public.LeaderboardService;
+import com.ty1l.spotify_remake.Service.Public.MonthlyListenersService;
 import com.ty1l.spotify_remake.Service.Public.SongService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -58,6 +57,12 @@ public class PlaybackHistoryService {
     @Autowired
     private SongService songService;
 
+    @Autowired
+    private MonthlyListenersService monthlyListenersService;
+
+    @Autowired
+    private LeaderboardService leaderboardService;
+
     /**
      * 记录播放历史（同步写 Redis ZSET + 异步落库 MySQL）
      *
@@ -71,21 +76,56 @@ public class PlaybackHistoryService {
 
         // 1. 同步写 Redis ZSET（快速，~1ms）
         cacheService.zadd(songKey, now, String.valueOf(songId));
+        // 1a. 同步更新全球排行榜 ZSET（ZINCRBY，~1ms）
+        leaderboardService.recordPlay(songId);
+        log.info("Playback recorded to Redis: userId={} songId={} songKey={}", userId, songId, songKey);
 
         // 2. 查找歌曲关联的所有艺人，写入艺人 ZSET
         List<SongArtist> songArtists = songArtistMapper.findBySongId(songId);
-        if (songArtists != null) {
+        if (songArtists != null && !songArtists.isEmpty()) {
             for (SongArtist sa : songArtists) {
                 cacheService.zadd(artistKey, now, String.valueOf(sa.getArtistId()));
                 // 3. 异步落库 MySQL（不阻塞主线程）
                 persistence.persistPlayback(userId, songId.longValue(), sa.getArtistId().longValue(), now);
+                // 4. 实时记录月听众（Redis SET 去重）
+                monthlyListenersService.recordListen(userId, sa.getArtistId());
             }
+            log.info("Playback artist ZSET updated: userId={} songId={} artistCount={}", userId, songId, songArtists.size());
+        } else {
+            log.warn("No song_artist mapping found for songId={}, playback recorded without artist", songId);
         }
 
         // 4. 裁剪 ZSET，保留最近 MAX_ZSET_SIZE 条
         long threshold = now - (365L * 24 * 3600 * 1000); // 一年前的数据可清理
         cacheService.zremrangeByScore(songKey, 0, threshold);
         cacheService.zremrangeByScore(artistKey, 0, threshold);
+    }
+
+    /**
+     * Redis 冷启动：从 MySQL user_playback_history 恢复 ZSET 数据。
+     * 当 Redis ZSET 为空但 MySQL 有记录时调用此方法回写。
+     */
+    public void syncMySQLToRedis(Long userId) {
+        List<UserPlaybackHistory> histories = playbackHistoryMapper.selectAllPlaybackHistory(userId);
+        if (histories == null || histories.isEmpty()) {
+            log.debug("syncMySQLToRedis: no MySQL records for userId={}", userId);
+            return;
+        }
+
+        String songKey = String.format(CacheService.KEY_PLAYBACK_SONGS, userId);
+        String artistKey = String.format(CacheService.KEY_PLAYBACK_ARTISTS, userId);
+
+        for (UserPlaybackHistory h : histories) {
+            long score = h.getPlayedAt()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli();
+            cacheService.zadd(songKey, score, String.valueOf(h.getSongId()));
+            if (h.getArtistId() != null) {
+                cacheService.zadd(artistKey, score, String.valueOf(h.getArtistId()));
+            }
+        }
+        log.info("syncMySQL→Redis complete: userId={} records={}", userId, histories.size());
     }
 
     /**
@@ -179,30 +219,4 @@ public class PlaybackHistoryService {
         return result;
     }
 
-    /**
-     * 异步持久化组件（独立 Bean 以支持 @Async 代理）
-     */
-    @Service
-    static class PlaybackPersistence {
-
-        @Autowired
-        private PlaybackHistoryMapper playbackHistoryMapper;
-
-        @Async("playbackExecutor")
-        public void persistPlayback(Long userId, Long songId, Long artistId, long timestampMillis) {
-            try {
-                UserPlaybackHistory history = new UserPlaybackHistory();
-                history.setUserId(userId);
-                history.setSongId(songId);
-                history.setArtistId(artistId);
-                history.setPlayedAt(LocalDateTime.ofInstant(
-                        java.time.Instant.ofEpochMilli(timestampMillis),
-                        ZoneId.systemDefault()));
-                playbackHistoryMapper.insertPlaybackHistory(history);
-            } catch (Exception e) {
-                log.warn("Async persist playback failed: userId={} songId={} artistId={}: {}",
-                        userId, songId, artistId, e.getMessage());
-            }
-        }
-    }
 }

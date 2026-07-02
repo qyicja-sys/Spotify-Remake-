@@ -4,34 +4,42 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ty1l.spotify_remake.Mapper.User.PlaybackHistoryMapper">
 
-    <!-- 查询用户最近播放的歌手（去重，按最近播放时间排序） -->
+    <!-- 查询用户最近播放的歌手（按歌手名去重，取最新播放时间排序，最多5个） -->
     <select id="selectRecentArtists" resultType="com.ty1l.spotify_remake.Entity.User.RecentArtistVO">
         SELECT
-            a.id,
+            ANY_VALUE(a.id) AS id,
             a.name,
-            a.avatarUrl
+            ANY_VALUE(a.avatarUrl) AS avatarUrl,
+            ANY_VALUE(a.avatarNetworkUrl) AS avatarNetworkUrl
         FROM user_playback_history h
         INNER JOIN artists a ON a.id = h.artist_id
         WHERE h.user_id = #{userId}
-        GROUP BY h.artist_id
+        GROUP BY a.name
         ORDER BY MAX(h.played_at) DESC
         LIMIT #{limit}
     </select>
 
-    <!-- 查询用户最近播放的歌曲（去重，按最近播放时间排序） -->
+    <!-- 查询用户最近播放的歌曲（去重，过滤封面为空的外部歌曲） -->
     <select id="selectRecentSongs" resultType="com.ty1l.spotify_remake.Entity.User.RecentlyPlayedSongVO">
         SELECT
             s.id,
             s.title,
-            a.name AS artistName,
-            s.coverUrl,
+            GROUP_CONCAT(DISTINCT a.name ORDER BY sa.is_main DESC, a.name ASC SEPARATOR ', ') AS artistName,
+            ANY_VALUE(s.coverUrl) AS coverUrl,
+            ANY_VALUE(s.coverNetworkUrl) AS coverNetworkUrl,
             s.duration,
+            ANY_VALUE(s.external_source) AS externalSource,
+            ANY_VALUE(s.external_id) AS externalId,
+            ANY_VALUE(s.pic_id) AS picId,
             MAX(h.played_at) AS playedAt
         FROM user_playback_history h
         INNER JOIN songs s ON s.id = h.song_id
-        INNER JOIN artists a ON a.id = h.artist_id
+        LEFT JOIN song_artist sa ON s.id = sa.song_id
+        LEFT JOIN artists a ON sa.artist_id = a.id
         WHERE h.user_id = #{userId}
-        GROUP BY h.song_id
+          AND NOT (s.external_source IS NOT NULL AND s.external_source != ''
+                   AND (s.coverNetworkUrl IS NULL OR s.coverNetworkUrl = ''))
+        GROUP BY s.id, s.title, s.duration
         ORDER BY MAX(h.played_at) DESC
         LIMIT #{limit}
     </select>
@@ -47,15 +55,13 @@
         VALUES (#{userId}, #{songId}, #{artistId}, #{playedAt})
     </insert>
 
-    <!-- 查询某艺人本月听众数（去重） -->
-    <select id="countMonthlyListeners" resultType="int">
-        <![CDATA[
-        SELECT COUNT(DISTINCT user_id)
+    <!-- 查询用户全部播放历史（用于 Redis 冷启动时从 MySQL 恢复 ZSET） -->
+    <select id="selectAllPlaybackHistory" resultType="com.ty1l.spotify_remake.Entity.User.UserPlaybackHistory">
+        SELECT id, user_id AS userId, song_id AS songId, artist_id AS artistId, played_at AS playedAt
         FROM user_playback_history
-        WHERE artist_id = #{artistId}
-          AND played_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
-          AND played_at <  DATE_FORMAT(CURRENT_DATE + INTERVAL 1 MONTH, '%Y-%m-01')
-        ]]>
+        WHERE user_id = #{userId}
+        ORDER BY played_at DESC
+        LIMIT 100
     </select>
 
 </mapper>

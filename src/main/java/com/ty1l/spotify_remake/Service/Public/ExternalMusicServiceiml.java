@@ -42,7 +42,6 @@ public class ExternalMusicServiceiml implements ExternalMusicService {
     @Override
     public List<ExternalTrackVO> search(String keyword) {
         String normalized = keyword.trim().replaceAll("\\s+", " ");
-        // 布隆过滤器：已知无结果的关键词直接返回空列表
         if (bloomFilterService.isKnownEmptySearch(normalized)) {
             log.debug("Bloom filter rejected empty search keyword={}", normalized);
             return Collections.emptyList();
@@ -50,29 +49,22 @@ public class ExternalMusicServiceiml implements ExternalMusicService {
 
         String cacheKey = String.format(CacheService.KEY_EXTERNAL_SEARCH, normalized);
 
-        List<ExternalTrackVO> cached = cacheService.getList(cacheKey, ExternalTrackVO.class);
-        if (cached != null) {
-            log.debug("External search cache hit for keyword={}", normalized);
-            return cached;
-        }
-
-        List<ExternalTrackVO> results = gdMusicApiClient.search(keyword);
-
-        if (results == null || results.isEmpty()) {
-            bloomFilterService.markEmptySearch(normalized);
-            return Collections.emptyList();
-        }
-
-        persistArtists(results);
-        syncLyricsToLocal(results);
-        cacheService.set(cacheKey, results, CacheService.EXTERNAL_SEARCH_TTL);
-        return results;
+        return cacheService.getOrLoadList(cacheKey, ExternalTrackVO.class, () -> {
+            log.info("External search API query for keyword={}", normalized);
+            List<ExternalTrackVO> results = gdMusicApiClient.search(keyword);
+            if (results == null || results.isEmpty()) {
+                bloomFilterService.markEmptySearch(normalized);
+                return Collections.emptyList();
+            }
+            persistArtists(results);
+            syncLyricsToLocal(results);
+            return results;
+        }, CacheService.EXTERNAL_SEARCH_TTL);
     }
 
     @Override
     public List<ExternalTrackVO> searchByArtist(String artistName) {
         String normalized = artistName.trim().replaceAll("\\s+", " ");
-        // 布隆过滤器：已知无结果的艺人名直接返回空列表
         if (bloomFilterService.isKnownEmptyArtistSearch(normalized)) {
             log.debug("Bloom filter rejected empty artist search name={}", normalized);
             return Collections.emptyList();
@@ -80,23 +72,17 @@ public class ExternalMusicServiceiml implements ExternalMusicService {
 
         String cacheKey = String.format(CacheService.KEY_EXTERNAL_ARTIST, normalized);
 
-        List<ExternalTrackVO> cached = cacheService.getList(cacheKey, ExternalTrackVO.class);
-        if (cached != null) {
-            log.debug("External artist search cache hit for artistName={}", normalized);
-            return cached;
-        }
-
-        List<ExternalTrackVO> results = gdMusicApiClient.searchByArtist(artistName);
-
-        if (results == null || results.isEmpty()) {
-            bloomFilterService.markEmptyArtistSearch(normalized);
-            return Collections.emptyList();
-        }
-
-        persistArtists(results);
-        syncLyricsToLocal(results);
-        cacheService.set(cacheKey, results, CacheService.EXTERNAL_SEARCH_TTL);
-        return results;
+        return cacheService.getOrLoadList(cacheKey, ExternalTrackVO.class, () -> {
+            log.info("External artist search API query for artistName={}", normalized);
+            List<ExternalTrackVO> results = gdMusicApiClient.searchByArtist(artistName);
+            if (results == null || results.isEmpty()) {
+                bloomFilterService.markEmptyArtistSearch(normalized);
+                return Collections.emptyList();
+            }
+            persistArtists(results);
+            syncLyricsToLocal(results);
+            return results;
+        }, CacheService.EXTERNAL_SEARCH_TTL);
     }
 
     /**
@@ -125,17 +111,12 @@ public class ExternalMusicServiceiml implements ExternalMusicService {
         String sourceId = trackId.contains("_") ? trackId : defaultSource + "_" + trackId;
         String cacheKey = String.format(CacheService.KEY_EXTERNAL_STREAM, source, trackId);
 
-        String cached = cacheService.get(cacheKey, String.class);
-        if (cached != null) {
-            log.debug("Stream URL cache hit for source={} trackId={}", source, trackId);
-            return cached;
-        }
-
-        String realUrl = gdMusicApiClient.getRealStreamUrl(sourceId);
-        if (realUrl != null) {
-            cacheService.set(cacheKey, realUrl, CacheService.EXTERNAL_STREAM_TTL);
-        }
-        return realUrl;
+        return cacheService.getOrLoad(cacheKey, String.class,
+                () -> {
+                    log.info("Stream URL API query for source={} trackId={}", source, trackId);
+                    return gdMusicApiClient.getRealStreamUrl(sourceId);
+                },
+                CacheService.EXTERNAL_STREAM_TTL);
     }
 
     @Override

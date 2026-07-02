@@ -40,7 +40,7 @@ public class LyricsController {
      *
      * @param source  音乐源标识 (gdmusic)
      * @param lyricId 歌词ID
-     * @return { "lyric": "[00:00.00]歌词内容\n..." }
+     * @return { "lyric": "原文LRC", "tlyric": "翻译LRC" } 至少包含 lyric
      */
     @GetMapping("/external")
     public Result getExternalLyrics(@RequestParam("source") String source,

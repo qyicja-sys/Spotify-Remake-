@@ -1,7 +1,8 @@
-﻿<script setup>
+<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { resolveUrl, imgUrl, getPlaylistDetail, getHome, getStreamUrl, search, searchExternal, searchExternalByArtist, createPlaylist, getProfile, updateNickName, uploadAvatar, registerArtist, uploadSong, searchArtists, getArtistDetail, likeSong, likeExternalSong, unlikeSong, checkLiked, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, editPlaylistDetail, collectPlaylist, uncollectPlaylist, checkPlaylistCollected, togglePlaylistPrivacy, createAlbum, searchMySongs, getArtistAlbums, getAlbumDetail, followArtist, unfollowArtist, checkArtistFollowed, recordExternalPlay, getLocalLyrics, getExternalLyrics } from './api/auth'
+import { resolveUrl, imgUrl, getPlaylistDetail, getHome, getStreamUrl, getExternalStreamUrl, search, searchExternal, searchExternalByArtist, createPlaylist, getProfile, updateNickName, uploadAvatar, registerArtist, uploadSong, searchArtists, getArtistDetail, likeSong, likeExternalSong, unlikeSong, checkLiked, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, editPlaylistDetail, collectPlaylist, uncollectPlaylist, checkPlaylistCollected, togglePlaylistPrivacy, createAlbum, searchMySongs, getArtistAlbums, getAlbumDetail, followArtist, unfollowArtist, checkArtistFollowed, recordExternalPlay, getLocalLyrics, getExternalLyrics, getLeaderboard } from './api/auth'
 import { getLastSong, setLastSong as saveLastSong } from './utils/storage'
+import { recentlyPlayedStore } from './stores/recentlyPlayed'
 
 // v-click-outside 指令
 const vClickOutside = {
@@ -33,7 +34,7 @@ function getCurrentUserId() {
     const token = sessionStorage.getItem('jwt')
     if (!token) return null
     const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.id
+    return payload.userId
   } catch { return null }
 }
 const scrollContainerRef = ref(null)
@@ -52,6 +53,48 @@ const artistDetail = ref(null)
 const loadingArtist = ref(false)
 const artistGradient = ref('')
 const artistAvatarFailed = ref(false)
+const browseCategoriesData = ref([
+  { id: 1, name: '音乐', color: '#e8115b', image: '' },
+  { id: 2, name: '播客', color: '#006450', image: '' },
+  { id: 3, name: 'MUSIC AWARDS JAPAN', color: '#e13300', image: '' },
+  { id: 4, name: '为你打造', color: '#1e3264', image: '' },
+  { id: 5, name: '新歌热播', color: '#8d67ab', image: '' },
+  { id: 6, name: '日文歌曲', color: '#b02897', image: '' },
+  { id: 7, name: '流行', color: '#148a08', image: '' },
+  { id: 8, name: '音乐', color: '#509bf5', image: '' },
+  { id: 9, name: '排行榜', color: '#8d67ab', image: '' },
+  { id: 10, name: '播客排行榜', color: '#006450', image: '' },
+  { id: 11, name: 'Radio Shows', color: '#e8115b', image: '' },
+  { id: 12, name: '教育', color: '#777777', image: '' },
+  { id: 13, name: '驾车', color: '#1e3264', image: '' },
+  { id: 14, name: '嘻哈', color: '#ba5d07', image: '' },
+  { id: 15, name: 'RADAR', color: '#148a08', image: '' },
+  { id: 16, name: '情绪', color: '#e8115b', image: '' },
+  { id: 17, name: '古典', color: '#777777', image: '' },
+  { id: 18, name: '爵士', color: '#509bf5', image: '' },
+  { id: 19, name: '摇滚', color: '#e13300', image: '' },
+  { id: 20, name: '电子', color: '#006450', image: '' },
+  { id: 21, name: 'R&B', color: '#dc148c', image: '' },
+  { id: 22, name: '乡村', color: '#ba5d07', image: '' },
+  { id: 23, name: '拉丁', color: '#e13300', image: '' },
+  { id: 24, name: 'K-Pop', color: '#1e3264', image: '' },
+  { id: 25, name: '工作学习', color: '#503750', image: '' },
+  { id: 26, name: '运动', color: '#777777', image: '' },
+  { id: 27, name: '派对', color: '#af2896', image: '' },
+  { id: 28, name: '睡前', color: '#1e3264', image: '' },
+  { id: 29, name: '独立', color: '#148a08', image: '' },
+  { id: 30, name: '民谣', color: '#ba5d07', image: '' },
+  { id: 31, name: '中国风', color: '#e8115b', image: '' },
+  { id: 32, name: '金属', color: '#777777', image: '' }
+])
+
+const browseSelectedCategory = ref(null)
+const browseCategoryDetail = ref(null)
+const leaderboardSongs = ref([])
+const showLeaderboardDetail = ref(false)
+const loadingLeaderboard = ref(false)
+const leaderboardTotalDuration = computed(() => leaderboardSongs.value.reduce((sum, s) => sum + (s.duration || 0), 0))
+const loadingBrowseDetail = ref(false)
 const artistAlbums = ref([])
 const artistExternalSongs = ref([])
 const profileAlbums = ref([])
@@ -83,6 +126,7 @@ const showPlaylistSubmenu = ref(false)
 const addToPlaylistSong = ref(null)
 const playlistSearchQuery = ref('')
 const submenuOpenLeft = ref(true)
+let submenuCloseTimer = null
 
 // 搜索
 const searchQuery = ref('')
@@ -269,6 +313,7 @@ async function playSong(song, queue) {
       audio.value.volume = volume.value
       let lastSaveTime = 0
       audio.value.addEventListener('timeupdate', () => {
+        if (isDraggingProgress.value) return
         currentTime.value = audio.value.currentTime
         // 每5秒保存一次播放进度
         if (audio.value.currentTime - lastSaveTime >= 5) {
@@ -281,7 +326,10 @@ async function playSong(song, queue) {
       audio.value.addEventListener('ended', onEnded)
       audio.value.addEventListener('loadedmetadata', () => {
         if (currentSong.value) {
-          currentSong.value.duration = audio.value.duration
+          const ad = audio.value.duration
+          if (isFinite(ad) && ad > 0) {
+            currentSong.value.duration = ad
+          }
         }
         // 恢复上次播放位置
         if (restoredSongId.value && currentSong.value?.id === restoredSongId.value && restoredTime.value > 0) {
@@ -337,6 +385,9 @@ async function playSong(song, queue) {
 
     // 持久化当前播放记录
     saveLastSong({ ...currentSong.value, currentTime: 0 })
+
+    // 乐观更新最近播放列表（Pinia store），异步同步到后端 Redis ZSET
+    recentlyPlayedStore.recordPlay(song)
 
     // 记录已播放歌曲
     if (!playedList.value.includes(song.id)) {
@@ -477,21 +528,29 @@ function onProgressMouseDown(e) {
   isDraggingProgress.value = true
   const bar = e.currentTarget
 
-  function seekBy(clientX) {
+  function updateVisual(clientX) {
     const rect = bar.getBoundingClientRect()
     let pct = (clientX - rect.left) / rect.width
     pct = Math.max(0, Math.min(1, pct))
-    audio.value.currentTime = pct * currentSong.value.duration
-    currentTime.value = audio.value.currentTime
+    currentTime.value = pct * currentSong.value.duration
   }
 
-  seekBy(e.clientX)
+  // 初始点击：仅更新视觉位置，不 seek（避免即时噪音）
+  updateVisual(e.clientX)
 
-  const onMove = (ev) => seekBy(ev.clientX)
-  const onUp = () => {
+  const onMove = (ev) => updateVisual(ev.clientX)
+  const onUp = (ev) => {
     isDraggingProgress.value = false
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onUp)
+    // 松手时才真正 seek 到目标位置
+    const rect = bar.getBoundingClientRect()
+    let pct = (ev.clientX - rect.left) / rect.width
+    pct = Math.max(0, Math.min(1, pct))
+    if (isFinite(currentSong.value.duration) && currentSong.value.duration > 0) {
+      audio.value.currentTime = pct * currentSong.value.duration
+      currentTime.value = audio.value.currentTime
+    }
   }
   document.addEventListener('mousemove', onMove)
   document.addEventListener('mouseup', onUp)
@@ -611,11 +670,13 @@ async function refreshDashboard() {
           console.log('[refreshDashboard] profilePic raw:', profile.profilePic)
           const resolvedUrl = profile.profilePic ? resolveUrl(profile.profilePic) : ''
           console.log('[refreshDashboard] profilePic resolved:', resolvedUrl)
-          // 保留已有的时间戳（如果有），否则不加
-          if (profilePic.value && profilePic.value.includes('<t=')) {
+          // 保留已有的缓存破坏参数，否则加新的
+          if (profilePic.value && profilePic.value.includes('?t=')) {
             // 已有时间戳，保留
+          } else if (resolvedUrl) {
+            profilePic.value = resolvedUrl + '?t=' + Date.now()
           } else {
-            profilePic.value = resolvedUrl
+            profilePic.value = ''
           }
           userNickName.value = profile.nickName || ''
           profilePicFailed.value = false
@@ -700,6 +761,21 @@ async function openArtistDetail(artistId) {
     currentView.value = 'artist'
     playedList.value = []
     loadLikedStatus(data?.songs)
+
+    // 检查关注状态（仅登录后）
+    if (sessionStorage.getItem('jwt')) {
+      const aid = data?.artist?.id
+      if (aid) {
+        checkArtistFollowed(aid).then(r => {
+          const followed = r?.data?.data?.followed || false
+          if (followed) {
+            followedArtistIds.value = new Set([...followedArtistIds.value, aid])
+          } else {
+            followedArtistIds.value = new Set([...followedArtistIds.value].filter(id => id !== aid))
+          }
+        }).catch(() => {})
+      }
+    }
 
     // 检查是否有外部歌曲，异步获取外部平台的更多歌曲
     const artistName = data?.artist?.name
@@ -935,7 +1011,7 @@ async function saveEditPlaylist() {
       playlistDetail.value = res.data.data
       // 封面URL加时间戳防止缓存
       if (playlistDetail.value.coverUrl && editPlaylistCoverFile.value) {
-        playlistDetail.value.coverUrl = playlistDetail.value.coverUrl + '<t=' + Date.now()
+        playlistDetail.value.coverUrl = playlistDetail.value.coverUrl + '?t=' + Date.now()
       }
     }
     // 刷新侧边栏歌单名称和封面
@@ -964,6 +1040,35 @@ function formatDuration(seconds) {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** 格式化播放量（如 12345 → "1.2万"） */
+function formatPlayCount(count) {
+  if (!count || count < 0) return '0'
+  if (count >= 100000000) return (count / 100000000).toFixed(1) + '亿'
+  if (count >= 10000) return (count / 10000).toFixed(1) + '万'
+  return count.toLocaleString()
+}
+
+/** 将排行榜歌曲 VO 映射为 playSong 所需的标准歌曲对象 */
+function mapLeaderboardSong(song) {
+  return {
+    id: song.id,
+    title: song.title,
+    artistName: song.artistName,
+    coverUrl: song.coverUrl,
+    coverNetworkUrl: song.coverNetworkUrl,
+    duration: song.duration,
+    externalSource: song.externalSource,
+    externalId: song.externalId,
+    picId: song.picId,
+    isExternal: !!(song.externalSource && song.externalId),
+  }
+}
+
+/** 排行榜歌曲的收藏处理 */
+async function handleLikeLeaderboardSong(song) {
+  await handleLikeSong(mapLeaderboardSong(song))
 }
 
 function firstArtist(name) {
@@ -1038,6 +1143,34 @@ async function goToArtistByName(name) {
   }
 }
 
+function handleBrowseCardClick(cat) {
+  browseSelectedCategory.value = cat
+  browseCategoryDetail.value = null
+  showLeaderboardDetail.value = false
+  currentView.value = 'browseDetail'
+}
+
+function openLeaderboard() {
+  showLeaderboardDetail.value = true
+  loadBrowseCategoryDetail(9)
+}
+
+async function loadBrowseCategoryDetail(categoryId) {
+  if (categoryId === 9) {
+    loadingLeaderboard.value = true
+    try {
+      const res = await getLeaderboard()
+      const data = res?.data?.data || res?.data
+      leaderboardSongs.value = data?.songs || []
+    } catch (e) {
+      console.error('Failed to load leaderboard:', e)
+      leaderboardSongs.value = []
+    } finally {
+      loadingLeaderboard.value = false
+    }
+  }
+}
+
 async function handleNavClick(page) {
   console.log('[handleNavClick] page:', page)
   activeNav.value = page
@@ -1048,6 +1181,10 @@ async function handleNavClick(page) {
     console.log('[handleNavClick] calling refreshDashboard...')
     await refreshDashboard()
     console.log('[handleNavClick] refreshDashboard done, profilePic:', profilePic.value)
+    return
+  }
+  if (page === 'browse') {
+    currentView.value = 'browse'
     return
   }
   const labels = { browse: '浏览', notification: '通知', contacts: '联系人' }
@@ -1134,7 +1271,6 @@ function closeSearchDropdown() {
 }
 
 async function handleToggleFollow(artist) {
-  alert('handleToggleFollow called: ' + artist.name)
   const isFollowed = followedArtistIds.value.has(artist.id)
   console.log('[handleToggleFollow] artist:', artist.name, 'isFollowed:', isFollowed)
   try {
@@ -1872,11 +2008,11 @@ async function saveEditProfile() {
     if (profileRes.data?.code === 200) {
       profileData.value = profileRes.data.data
       userNickName.value = profileRes.data.data.nickName || ''
-      // 头像URL鍔犳椂闂存埑闃叉缂撳瓨
+      // 头像URL加时间戳防止缓存
       if (profileRes.data.data.profilePic) {
         const timestamp = Date.now()
-        profilePic.value = resolveUrl(profileRes.data.data.profilePic) + '<t=' + timestamp
-        profileData.value.profilePic = profileRes.data.data.profilePic + '<t=' + timestamp
+        profilePic.value = resolveUrl(profileRes.data.data.profilePic) + '?t=' + timestamp
+        profileData.value.profilePic = profileRes.data.data.profilePic + '?t=' + timestamp
       } else {
         profilePic.value = ''
       }
@@ -1912,6 +2048,13 @@ async function openProfile() {
     const res = await getProfile()
     if (res.data?.code === 200) {
       profileData.value = res.data.data
+      // 头像 URL 加时间戳防止浏览器缓存（OSS 同名覆盖后 URL 不变）
+      if (res.data.data.profilePic) {
+        const timestamp = Date.now()
+        const bustedUrl = resolveUrl(res.data.data.profilePic) + '?t=' + timestamp
+        profilePic.value = bustedUrl
+        profileData.value.profilePic = bustedUrl
+      }
       // 提取头像主色调
       const picUrl = resolveUrl(res.data.data.profilePic)
       if (picUrl) {
@@ -1936,15 +2079,20 @@ async function openProfile() {
 function extractDominantColor(imageUrl) {
   return new Promise((resolve) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    // 不设 crossOrigin — 跨域 OSS 图片会触发 CORS 报错且阻断了 onload
     img.onload = () => {
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      canvas.width = 1
-      canvas.height = 1
-      ctx.drawImage(img, 0, 0, 1, 1)
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
-      resolve(`rgba(${r}, ${g}, ${b}, 0.6)`)
+      try {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        canvas.width = 1
+        canvas.height = 1
+        ctx.drawImage(img, 0, 0, 1, 1)
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+        resolve(`rgba(${r}, ${g}, ${b}, 0.6)`)
+      } catch (e) {
+        // 跨域图片导致 canvas 被污染 → 降级到默认色
+        resolve('rgba(83, 83, 83, 0.6)')
+      }
     }
     img.onerror = () => resolve('rgba(83, 83, 83, 0.6)')
     img.src = imageUrl
@@ -2016,12 +2164,13 @@ function playSearchSong(song) {
 }
 
 // 从歌单播放外部歌曲
-function playExternalSongFromPlaylist(song, queue) {
+async function playExternalSongFromPlaylist(song, queue) {
   if (!audio.value) {
     audio.value = new Audio()
     audio.value.volume = volume.value
     let lastSaveTime = 0
     audio.value.addEventListener('timeupdate', () => {
+      if (isDraggingProgress.value) return
       currentTime.value = audio.value.currentTime
       if (audio.value.currentTime - lastSaveTime >= 5) {
         lastSaveTime = audio.value.currentTime
@@ -2033,7 +2182,10 @@ function playExternalSongFromPlaylist(song, queue) {
     audio.value.addEventListener('ended', onEnded)
     audio.value.addEventListener('loadedmetadata', () => {
       if (currentSong.value) {
-        currentSong.value.duration = audio.value.duration
+        const ad = audio.value.duration
+        if (isFinite(ad) && ad > 0) {
+          currentSong.value.duration = ad
+        }
       }
       if (restoredSongId.value && currentSong.value?.id === restoredSongId.value && restoredTime.value > 0) {
         audio.value.currentTime = restoredTime.value
@@ -2074,8 +2226,18 @@ function playExternalSongFromPlaylist(song, queue) {
     isExternal: true
   }
 
-  const streamProxyUrl = `/spotify/external/stream-proxy/${song.externalSource}/${song.externalId}`
-  audio.value.src = resolveUrl(streamProxyUrl)
+  // 通过后端 API 获取签名的流代理 URL，而非前端直接拼接
+  try {
+    const res = await getExternalStreamUrl(song.externalSource, song.externalId)
+    if (res.data?.code !== 200 || !res.data?.data?.streamUrl) {
+      showToastMessage('获取播放地址失败')
+      return
+    }
+    audio.value.src = resolveUrl(res.data.data.streamUrl)
+  } catch (e) {
+    showToastMessage('获取播放地址失败')
+    return
+  }
   audio.value.play().catch(() => {
     isPlaying.value = false
     showToastMessage('该歌曲暂无法播放，外部数据源不可用')
@@ -2085,7 +2247,8 @@ function playExternalSongFromPlaylist(song, queue) {
 
   saveLastSong({ ...currentSong.value, currentTime: 0 })
 
-  // 记录外部歌曲播放历史
+  // 乐观更新最近播放列表 + 记录外部歌曲播放历史
+  recentlyPlayedStore.recordPlay(song)
   try { recordExternalPlay({ source: song.externalSource, externalId: song.externalId, title: song.title, artistName: song.artistName, coverUrl: song.coverUrl, coverNetworkUrl: song.coverNetworkUrl, duration: song.duration, picId: song.picId }).catch(() => {}) } catch {}
 }
 
@@ -2095,6 +2258,7 @@ function playExternalTrack(track, fromQueue = false) {
     audio.value = new Audio()
     let lastSaveTime = 0
     audio.value.addEventListener('timeupdate', () => {
+      if (isDraggingProgress.value) return
       currentTime.value = audio.value.currentTime
       if (audio.value.currentTime - lastSaveTime >= 5) {
         lastSaveTime = audio.value.currentTime
@@ -2106,7 +2270,10 @@ function playExternalTrack(track, fromQueue = false) {
     audio.value.addEventListener('ended', onEnded)
     audio.value.addEventListener('loadedmetadata', () => {
       if (currentSong.value) {
-        currentSong.value.duration = audio.value.duration
+        const ad = audio.value.duration
+        if (isFinite(ad) && ad > 0) {
+          currentSong.value.duration = ad
+        }
       }
       if (restoredSongId.value && currentSong.value?.id === restoredSongId.value && restoredTime.value > 0) {
         audio.value.currentTime = restoredTime.value
@@ -2158,7 +2325,8 @@ function playExternalTrack(track, fromQueue = false) {
   // 持久化当前播放歌曲
   saveLastSong({ ...currentSong.value, currentTime: 0 })
 
-  // 记录外部歌曲播放历史
+  // 乐观更新最近播放 + 记录外部歌曲播放历史
+  recentlyPlayedStore.recordPlay(track)
   try { recordExternalPlay({ source: track.source, externalId: track.externalId, title: track.title, artistName: track.artistName, coverUrl: track.coverUrl, duration: track.duration, picId: track.picId }).catch(() => {}) } catch {}
 
   showSearchDropdown.value = false
@@ -2257,6 +2425,7 @@ function toggleSongMenu(song, event) {
 }
 function closeSongMenu() {
   activeSongMenuId.value = null
+  cancelSubmenuCloseTimer()
   showPlaylistSubmenu.value = false
   document.body.classList.remove('menu-open')
 }
@@ -2264,6 +2433,7 @@ function closeSongMenu() {
 const expandOverlayVisible = ref(false)
 const expandLyrics = ref([])
 const expandActiveLyricIndex = ref(-1)
+const expandCharProgress = ref(0)
 const expandLyricsLoading = ref(false)
 const lyricsScrollRef = ref(null)
 const expandCoverUrl = computed(() => {
@@ -2296,6 +2466,23 @@ function parseLrc(lrcText) {
   return result
 }
 
+/** 将原文和翻译 LRC 按时间戳配对，返回 [{ time, text, ttext }] */
+function mergeLyrics(lyricLrc, tlyricLrc) {
+  const orig = parseLrc(lyricLrc)
+  const trans = parseLrc(tlyricLrc)
+  if (!trans.length) return orig.map(l => ({ ...l, ttext: null }))
+  // 为每条原文匹配最近时间戳的翻译（阈值 0.5s）
+  return orig.map(line => {
+    let best = null
+    let bestDist = 0.5
+    for (const t of trans) {
+      const dist = Math.abs(t.time - line.time)
+      if (dist < bestDist) { bestDist = dist; best = t }
+    }
+    return { time: line.time, text: line.text, ttext: best ? best.text : null }
+  })
+}
+
 function openExpandOverlay() {
   if (!currentSong.value) return
   expandOverlayVisible.value = true
@@ -2326,7 +2513,12 @@ async function loadExpandLyrics(song) {
     if (typeof raw === 'string') {
       expandLyrics.value = parseLrc(raw)
     } else if (raw?.lyric) {
-      expandLyrics.value = parseLrc(raw.lyric)
+      // 同时有原文和翻译时，按时间戳合并为双语
+      if (raw.tlyric) {
+        expandLyrics.value = mergeLyrics(raw.lyric, raw.tlyric)
+      } else {
+        expandLyrics.value = parseLrc(raw.lyric)
+      }
     } else if (Array.isArray(raw) && raw.length) {
       expandLyrics.value = raw.map(l => ({ time: l.time ?? l.startTime ?? 0, text: l.text ?? l.lyric ?? '' }))
     }
@@ -2336,6 +2528,27 @@ async function loadExpandLyrics(song) {
   expandLyricsLoading.value = false
 }
 
+/** 歌词行不透明度——距当前行越远越淡，形成聚光灯渐变 */
+function lyricOpacity(index) {
+  const active = expandActiveLyricIndex.value
+  if (active < 0) return 0.3
+  const dist = Math.abs(index - active)
+  if (dist === 0) return 1
+  if (dist === 1) return 0.65
+  if (dist === 2) return 0.45
+  if (dist === 3) return 0.3
+  return 0.18
+}
+
+/** 点击歌词行跳转到对应播放位置 */
+function seekToLyric(time) {
+  if (!audio.value || !currentSong.value) return
+  audio.value.currentTime = time
+  currentTime.value = time
+  // 触发过渡重设：将 activeRevealIdx 置为无效，让 watch(currentTime) 在下一次 tick 重设
+  activeRevealIdx = -1
+}
+
 /** 滚动歌词到视图中央 */
 function scrollLyricToCenter(index) {
   const container = lyricsScrollRef.value
@@ -2343,9 +2556,33 @@ function scrollLyricToCenter(index) {
   const activeEl = container.querySelectorAll('.lyric-line')[index]
   if (!activeEl) return
   const containerHeight = container.clientHeight
-  const targetTop = activeEl.offsetTop - containerHeight / 2 + activeEl.clientHeight / 2
-  container.scrollTo({ top: targetTop, behavior: 'smooth' })
+  let targetTop = activeEl.offsetTop - containerHeight / 2 + activeEl.clientHeight / 2
+  const maxScroll = container.scrollHeight - container.clientHeight
+  targetTop = Math.max(0, Math.min(targetTop, maxScroll))
+  container.scrollTo({ top: targetTop, behavior: 'auto' })
 }
+
+function clampLyricsScroll() {
+  const el = lyricsScrollRef.value
+  if (!el) return
+  const lines = el.querySelectorAll('.lyric-line')
+  if (!lines.length) return
+  const firstTop = lines[0].offsetTop
+  const lastEl = lines[lines.length - 1]
+  const lastBottom = lastEl.offsetTop + lastEl.clientHeight
+  const viewH = el.clientHeight
+  const minScroll = Math.max(0, firstTop - viewH / 2 + lines[0].clientHeight / 2)
+  const maxScroll = Math.max(0, lastBottom - viewH / 2 - lines[lines.length - 1].clientHeight / 2)
+  if (el.scrollTop < minScroll) el.scrollTop = minScroll
+  if (el.scrollTop > maxScroll) el.scrollTop = maxScroll
+}
+
+// 歌词叠加层打开时，切歌自动刷新歌词
+watch(currentSong, (song) => {
+  if (expandOverlayVisible.value && song) {
+    loadExpandLyrics(song)
+  }
+})
 
 watch(expandActiveLyricIndex, (idx) => {
   if (idx >= 0) {
@@ -2353,13 +2590,137 @@ watch(expandActiveLyricIndex, (idx) => {
   }
 })
 
+watch(expandOverlayVisible, (visible) => {
+  nextTick(() => {
+    const el = lyricsScrollRef.value
+    if (!el) return
+    if (visible) {
+      el.addEventListener('scroll', clampLyricsScroll)
+    } else {
+      el.removeEventListener('scroll', clampLyricsScroll)
+    }
+  })
+})
+
+// ========== 逐字染色引擎：等权分配 + CSS transition 硬边界扫过 ==========
+
+/** 将歌词文本切分为独立单元：中文逐字，英文按"单词+后续空格/标点"分组 */
+function splitTextUnits(text) {
+  if (!text) return []
+  const units = []
+  let i = 0
+  while (i < text.length) {
+    const ch = text[i]
+    if (/[一-鿿　-〿＀-￯]/.test(ch)) {
+      // 中文字符：独立单元
+      units.push(ch)
+      i++
+    } else if (/[a-zA-Z]/.test(ch)) {
+      // 英文单词：连续字母 + 后续非中文部分作为一个单元
+      let word = ''
+      while (i < text.length && !/[一-鿿　-〿＀-￯]/.test(text[i])) {
+        word += text[i]
+        i++
+      }
+      units.push(word)
+    } else {
+      // 其他字符（数字、符号等）：独立单元
+      units.push(ch)
+      i++
+    }
+  }
+  return units
+}
+
+let activeRevealIdx = -1   // 当前正在执行过渡的歌词行索引
+let lastLyricT = -1        // 上一次 currentTime，用于检测 seek
+
 watch(currentTime, (t) => {
   if (!expandOverlayVisible.value || !expandLyrics.value.length) return
+
+  // 查找当前时间对应的歌词行
   let idx = -1
   for (let i = expandLyrics.value.length - 1; i >= 0; i--) {
     if (t >= expandLyrics.value[i].time) { idx = i; break }
   }
   expandActiveLyricIndex.value = idx
+  if (!lyricsScrollRef.value) return
+
+  const lines = lyricsScrollRef.value.querySelectorAll('.lyric-line')
+  const isSeek = lastLyricT >= 0 && Math.abs(t - lastLyricT) > 0.5
+  lastLyricT = t
+
+  const lineChanged = idx !== activeRevealIdx
+
+  // 换行/seek 时：冻结并重置旧行
+  if ((lineChanged || isSeek) && activeRevealIdx >= 0 && lines[activeRevealIdx]) {
+    const old = lines[activeRevealIdx]
+    const frozen = getComputedStyle(old).getPropertyValue('--reveal-pct').trim()
+    old.style.transition = 'none'
+    old.style.setProperty('--reveal-pct', frozen || '0%')
+  }
+  if (lineChanged || isSeek) {
+    activeRevealIdx = idx
+  }
+
+  // 设置当前行的 hard-stop 过渡
+  if (idx >= 0 && lines[idx]) {
+    const curTime = expandLyrics.value[idx].time
+    const nextTime = idx < expandLyrics.value.length - 1
+      ? expandLyrics.value[idx + 1].time
+      : curTime + 4
+    const T = Math.max(0.3, nextTime - curTime)     // 总时长（秒）
+    const elapsed = Math.max(0, t - curTime)          // 已过时间
+    const remaining = Math.max(0.05, T - elapsed)     // 剩余时间
+    const startPct = Math.min(100, (elapsed / T) * 100)
+
+    const line = lines[idx]
+
+    if (lineChanged || isSeek) {
+      // 重置过渡起点（先清 transition 避免从旧值过渡过来）
+      line.style.transition = 'none'
+      line.style.setProperty('--reveal-pct', startPct + '%')
+      line.offsetHeight // 强制重排
+    }
+
+    if (isPlaying.value) {
+      line.style.transition = `--reveal-pct ${remaining.toFixed(2)}s linear`
+      line.style.setProperty('--reveal-pct', '100%')
+    } else {
+      line.style.transition = 'none'
+    }
+  }
+})
+
+// 暂停时冻结过渡，播放时从当前位置恢复
+watch(isPlaying, (playing) => {
+  if (!expandOverlayVisible.value || activeRevealIdx < 0) return
+  const lines = lyricsScrollRef.value?.querySelectorAll('.lyric-line')
+  if (!lines || !lines[activeRevealIdx]) return
+  const line = lines[activeRevealIdx]
+
+  if (playing) {
+    // 恢复：从当前冻结位置继续
+    const frozen = (getComputedStyle(line).getPropertyValue('--reveal-pct').trim()).replace('%', '')
+    const curPct = parseFloat(frozen) || 0
+    const curTime = expandLyrics.value[activeRevealIdx].time
+    const nextTime = activeRevealIdx < expandLyrics.value.length - 1
+      ? expandLyrics.value[activeRevealIdx + 1].time
+      : curTime + 4
+    const T = Math.max(0.3, nextTime - curTime)
+    const remaining = Math.max(0.05, T * (1 - curPct / 100))
+
+    line.style.transition = 'none'
+    line.style.setProperty('--reveal-pct', curPct + '%')
+    line.offsetHeight
+    line.style.transition = `--reveal-pct ${remaining.toFixed(2)}s linear`
+    line.style.setProperty('--reveal-pct', '100%')
+  } else {
+    // 暂停：冻结当前位置
+    const frozen = getComputedStyle(line).getPropertyValue('--reveal-pct').trim()
+    line.style.transition = 'none'
+    line.style.setProperty('--reveal-pct', frozen || '0%')
+  }
 })
 // 渚ц竟闈㈡澘姝屾洸更多鑿滃崟
 const sidePanelActiveMenu = ref(false)
@@ -2394,6 +2755,7 @@ function toggleSidePanelSongMenu(song, event) {
 function closeSidePanelSongMenu() {
   sidePanelActiveMenu.value = false
   activeSongMenuId.value = null
+  cancelSubmenuCloseTimer()
   showPlaylistSubmenu.value = false
   document.body.classList.remove('menu-open')
 }
@@ -2408,13 +2770,26 @@ function openPlaylistSubmenu(song, event) {
 }
 
 function closePlaylistSubmenu() {
-  showPlaylistSubmenu.value = false
-  addToPlaylistSong.value = null
-  playlistSearchQuery.value = ''
+  submenuCloseTimer = setTimeout(() => {
+    showPlaylistSubmenu.value = false
+    addToPlaylistSong.value = null
+    playlistSearchQuery.value = ''
+  }, 200)
+}
+function cancelSubmenuCloseTimer() {
+  if (submenuCloseTimer) {
+    clearTimeout(submenuCloseTimer)
+    submenuCloseTimer = null
+  }
 }
 
 const filteredMyPlaylists = computed(() => {
-  const base = sortedPlaylists.value.filter(p => p.name !== '已点赞的歌曲')
+  // 只保留自建歌单（type===0），排除：已点赞的歌曲、系统歌单、收藏歌单
+  let base = sortedPlaylists.value.filter(p => p.name !== '已点赞的歌曲' && p.type === 0)
+  // 排除当前正在查看的歌单（避免将歌曲加入自身）
+  if (currentView.value === 'playlist' && playlistDetail.value?.id) {
+    base = base.filter(p => p.id !== playlistDetail.value.id)
+  }
   const q = playlistSearchQuery.value.trim().toLowerCase()
   if (!q) return base
   return base.filter(p => p.name.toLowerCase().includes(q))
@@ -2607,10 +2982,37 @@ onMounted(async () => {
   // 保存右侧面板初始状态到localStorage
   localStorage.setItem('spotify_side_panel_open', showSidePanel.value)
   localStorage.setItem('spotify_side_panel_width', sideWidth.value)
-  // 未登录则跳回登录页
+  // 未登录则尝试用 localStorage 的 refreshToken 恢复会话
   if (!sessionStorage.getItem('jwt')) {
-    window.location.href = '/spotify-frontend/'
-    return
+    const savedRefreshToken = localStorage.getItem('refreshToken')
+    if (savedRefreshToken) {
+      try {
+        const resp = await fetch('/spotify/token/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: savedRefreshToken }),
+        })
+        const data = await resp.json()
+        if (resp.ok && data.code === 200 && data.data?.jwt) {
+          sessionStorage.setItem('jwt', data.data.jwt)
+          localStorage.setItem('jwt', data.data.jwt)
+          if (data.data.refreshToken) {
+            sessionStorage.setItem('refreshToken', data.data.refreshToken)
+            localStorage.setItem('refreshToken', data.data.refreshToken)
+          }
+          // 恢复成功，继续加载
+        } else {
+          window.location.href = '/spotify-frontend/'
+          return
+        }
+      } catch {
+        window.location.href = '/spotify-frontend/'
+        return
+      }
+    } else {
+      window.location.href = '/spotify-frontend/'
+      return
+    }
   }
   // 恢复当前页面状态
   const savedView = sessionStorage.getItem('currentView')
@@ -2665,6 +3067,13 @@ watch(currentView, (newView) => {
 // 音量变化持久化到 localStorage
 watch(volume, (v) => {
   localStorage.setItem('spotify_volume', v.toString())
+})
+
+// Profile 加载后同步最近播放数据到 Pinia store
+watch(profileData, (data) => {
+  if (data && (data.recentSongs || data.recentArtists)) {
+    recentlyPlayedStore.setFromProfile(data)
+  }
 })
 
 function handleMouseMove(event) {
@@ -2749,6 +3158,7 @@ onBeforeUnmount(() => {
           </svg>
         </div>
       </div>
+      
 
       <div class="header-center">
         <button class="btn-circle" :class="{ active: activeNav === 'home' }" @click="handleNavClick('home')" @mouseenter="e => showTooltip(e, '主页')" @mouseleave="hideTooltip">
@@ -2998,7 +3408,7 @@ onBeforeUnmount(() => {
 
       <div class="drag-bar" @mousedown="startDrag"></div>
 
-      <div class="panel right">
+      <div class="panel right" :class="{ 'home-gradient': currentView === 'home' }">
         <div class="right-header" v-if="currentView === 'home'">
           <div class="category-tabs">
             <div class="tab-active">全部</div>
@@ -3119,10 +3529,10 @@ onBeforeUnmount(() => {
                       <h2 class="section-title">本月热门艺人</h2>
                       <div class="section-subtitle">仅自己可见</div>
                     </div>
-                    <a class="section-link" href="#" v-if="profileData.recentArtists && profileData.recentArtists.length">查看全部</a>
+                    <a class="section-link" href="#" v-if="recentlyPlayedStore.recentArtists && recentlyPlayedStore.recentArtists.length">查看全部</a>
                   </div>
-                  <div v-if="profileData.recentArtists && profileData.recentArtists.length" class="profile-artist-grid">
-                    <div class="profile-artist-card" v-for="artist in profileData.recentArtists" :key="artist.id" @click="openArtistDetail(artist.id)" style="cursor:pointer;">
+                  <div v-if="recentlyPlayedStore.recentArtists && recentlyPlayedStore.recentArtists.length" class="profile-artist-grid">
+                    <div class="profile-artist-card" v-for="artist in recentlyPlayedStore.recentArtists" :key="artist.id" @click="openArtistDetail(artist.id)" style="cursor:pointer;">
                       <div class="profile-artist-avatar">
                         <img v-if="artist.avatarUrl" :src="imgUrl(artist.avatarUrl, artist.avatarNetworkUrl)" :alt="artist.name" />
                         <svg v-else viewBox="0 0 24 24" width="40" height="40" fill="#b3b3b3"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 14.2a7.2 7.2 0 0 1-6-3.19c.03-1.98 4-3.06 6-3.06s5.97 1.08 6 3.06a7.2 7.2 0 0 1-6 3.19z"/></svg>
@@ -3141,10 +3551,10 @@ onBeforeUnmount(() => {
                       <h2 class="section-title">本月热门曲目</h2>
                       <div class="section-subtitle">仅自己可见</div>
                     </div>
-                    <a class="section-link" href="#" v-if="profileData.recentSongs && profileData.recentSongs.length">查看全部</a>
+                    <a class="section-link" href="#" v-if="recentlyPlayedStore.recentSongs && recentlyPlayedStore.recentSongs.length">查看全部</a>
                   </div>
-                  <div v-if="profileData.recentSongs && profileData.recentSongs.length" class="profile-song-list">
-                    <div class="profile-song-row" v-for="(song, index) in (recentSongLimit === 6 ? profileData.recentSongs.slice(0, 6) : profileData.recentSongs.slice((recentSongPage - 1) * 10, recentSongPage * 10))" :key="song.id" @click="playSong(song, profileData.recentSongs)">
+                  <div v-if="recentlyPlayedStore.recentSongs && recentlyPlayedStore.recentSongs.length" class="profile-song-list">
+                    <div class="profile-song-row" v-for="(song, index) in (recentSongLimit === 6 ? recentlyPlayedStore.recentSongs.slice(0, 6) : recentlyPlayedStore.recentSongs.slice((recentSongPage - 1) * 10, recentSongPage * 10))" :key="song.id" @click="playSong(song, recentlyPlayedStore.recentSongs)">
                       <div class="profile-song-num">{{ recentSongLimit === 6 ? index + 1 : (recentSongPage - 1) * 10 + index + 1 }}</div>
                       <div class="profile-song-cover">
                         <img v-if="song.coverUrl || song.coverNetworkUrl" :src="imgUrl(song.coverUrl, song.coverNetworkUrl)" :alt="song.title" />
@@ -3156,16 +3566,16 @@ onBeforeUnmount(() => {
                       <div class="profile-song-duration">{{ formatTime(song.duration) }}</div>
                     </div>
                   </div>
-                  <div v-if="recentSongLimit === 6 && profileData.recentSongs && profileData.recentSongs.length > 6" class="profile-song-more-row">
+                  <div v-if="recentSongLimit === 6 && recentlyPlayedStore.recentSongs && recentlyPlayedStore.recentSongs.length > 6" class="profile-song-more-row">
                     <button class="profile-song-more-btn" @click="recentSongLimit = 10; recentSongPage = 1">查看更多</button>
                   </div>
-                  <template v-if="recentSongLimit === 10 && profileData.recentSongs && profileData.recentSongs.length > 6">
+                  <template v-if="recentSongLimit === 10 && recentlyPlayedStore.recentSongs && recentlyPlayedStore.recentSongs.length > 6">
                     <div class="profile-song-pagination">
                       <button class="profile-song-page-btn" :disabled="recentSongPage <= 1" @click="recentSongPage--">
                         <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.03.47a.75.75 0 0 1 0 1.06L4.56 8l6.47 6.47a.75.75 0 1 1-1.06 1.06L2.44 8 9.97.47a.75.75 0 0 1 1.06 0z"/></svg>
                       </button>
-                      <span class="profile-song-page-info">{{ recentSongPage }} / {{ Math.ceil(profileData.recentSongs.length / 10) }}</span>
-                      <button class="profile-song-page-btn" :disabled="recentSongPage >= Math.ceil(profileData.recentSongs.length / 10)" @click="recentSongPage++">
+                      <span class="profile-song-page-info">{{ recentSongPage }} / {{ Math.ceil(recentlyPlayedStore.recentSongs.length / 10) }}</span>
+                      <button class="profile-song-page-btn" :disabled="recentSongPage >= Math.ceil(recentlyPlayedStore.recentSongs.length / 10)" @click="recentSongPage++">
                         <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M4.97.47a.75.75 0 0 0 0 1.06L11.44 8l-6.47 6.47a.75.75 0 1 0 1.06 1.06L13.56 8 6.03.47a.75.75 0 0 0-1.06 0z"/></svg>
                       </button>
                     </div>
@@ -3198,9 +3608,9 @@ onBeforeUnmount(() => {
       </div>
 
         <!-- Playlist Detail View -->
-        <div v-else-if="currentView === 'playlist' && playlistDetail" class="playlist-detail">
-          <div class="playlist-bg-section" :style="getPlaylistBgStyle()">
-            <div class="playlist-bg-blur"></div>
+        <div v-else-if="currentView === 'playlist' && playlistDetail" class="playlist-detail" :style="getPlaylistBgStyle()">
+          <div class="playlist-black-overlay"></div>
+          <div class="playlist-bg-section">
             <div class="playlist-header" :class="{ 'playlist-header--new': !playlistDetail.coverUrl && !playlistDetail.songs?.length && playlistDetail.type !== 0, 'playlist-header--user': playlistDetail.type === 0 }">
               <div class="playlist-cover">
                 <img v-if="playlistDetail.coverUrl" :src="imgUrl(playlistDetail.coverUrl, playlistDetail.coverNetworkUrl)" :alt="playlistDetail.title" />
@@ -3236,7 +3646,7 @@ onBeforeUnmount(() => {
                   <div class="playlist-meta">
                     <span>{{ playlistDetail.songCount || playlistDetail.songs?.length || 0 }}首歌</span>
                     <span class="meta-dot">·</span>
-                    <span>约{ Math.round((playlistDetail.totalDuration || 0) / 60) }}分钟</span>
+                    <span>约{{ Math.round((playlistDetail.totalDuration || 0) / 60) }}分钟</span>
                   </div>
                 </template>
               </div>
@@ -3383,7 +3793,7 @@ onBeforeUnmount(() => {
                 {{ formatDuration(song.duration) }}
               </div>
               <div class="song-col-more song-menu-wrapper">
-                <button class="song-action-btn" title="更多">
+                <button class="song-action-btn" title="更多" @click.stop="toggleSongMenu(song, $event)">
                   <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m6.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0M16 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/></svg>
                 </button>
                 <div v-if="activeSongMenuId === song.id" v-click-outside="closeSongMenu" class="song-popup-menu" :style="songMenuStyle" @click.stop>
@@ -3395,7 +3805,7 @@ onBeforeUnmount(() => {
                     <div class="menu-right">
                       <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6 2l6 6-6 6z"/></svg>
                     </div>
-                    <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop>
+                    <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop @mouseenter="cancelSubmenuCloseTimer" @mouseleave="closePlaylistSubmenu">
                       <div class="submenu-search-wrapper">
                         <svg class="submenu-search-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M7 1.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5M0 7a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 0 7"/></svg>
                         <input v-model="playlistSearchQuery" class="submenu-search-input" placeholder="查找播放列表" @click.stop />
@@ -3489,9 +3899,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Album Detail View -->
-        <div v-else-if="currentView === 'album' && albumDetail" class="playlist-detail">
-          <div class="playlist-bg-section" :style="getAlbumBgStyle()">
-            <div class="playlist-bg-blur"></div>
+        <div v-else-if="currentView === 'album' && albumDetail" class="playlist-detail" :style="getAlbumBgStyle()">
+          <div class="playlist-black-overlay"></div>
+          <div class="playlist-bg-section">
             <div class="playlist-header">
               <div class="playlist-cover">
                 <img v-if="albumDetail.album?.coverUrl" :src="imgUrl(albumDetail.album.coverUrl, albumDetail.album.coverNetworkUrl)" :alt="albumDetail.album.name" />
@@ -3582,7 +3992,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <div class="song-col-album">{{ albumDetail.album?.name || '鈥' }}</div>
+              <div class="song-col-album">{{ albumDetail.album?.name || '…' }}</div>
               <div class="song-col-add">
                 <button class="song-action-btn" :class="{ liked: likedSongIds.has(song.id) }" :title="likedSongIds.has(song.id) ? '取消收藏' : '收藏'" @click.stop="handleLikeSong(song)">
                   <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
@@ -3593,7 +4003,7 @@ onBeforeUnmount(() => {
                 {{ formatDuration(song.duration) }}
               </div>
               <div class="song-col-more song-menu-wrapper">
-                <button class="song-action-btn" title="更多">
+                <button class="song-action-btn" title="更多" @click.stop="toggleSongMenu(song, $event)">
                   <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m6.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0M16 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/></svg>
                 </button>
                 <div v-if="activeSongMenuId === song.id" v-click-outside="closeSongMenu" class="song-popup-menu" :style="songMenuStyle" @click.stop>
@@ -3605,7 +4015,7 @@ onBeforeUnmount(() => {
                     <div class="menu-right">
                       <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6 2l6 6-6 6z"/></svg>
                     </div>
-                    <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop>
+                    <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop @mouseenter="cancelSubmenuCloseTimer" @mouseleave="closePlaylistSubmenu">
                       <div class="submenu-search-wrapper">
                         <svg class="submenu-search-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M7 1.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5M0 7a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 0 7"/></svg>
                         <input v-model="playlistSearchQuery" class="submenu-search-input" placeholder="查找播放列表" @click.stop />
@@ -3680,9 +4090,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Artist Detail View -->
-        <div v-else-if="currentView === 'artist' && artistDetail" class="artist-detail">
-          <div class="artist-bg-section" :style="{ background: artistGradient }">
-            <div class="playlist-bg-blur"></div>
+        <div v-else-if="currentView === 'artist' && artistDetail" class="artist-detail" :style="{ background: artistGradient }">
+          <div class="artist-black-overlay"></div>
+          <div class="artist-bg-section">
             <div class="artist-header">
               <div class="artist-avatar-large">
                 <img v-if="artistDetail.artist?.avatarUrl && !artistAvatarFailed" :src="imgUrl(artistDetail.artist.avatarUrl, artistDetail.artist.avatarNetworkUrl)" :alt="artistDetail.artist.name" @error="artistAvatarFailed = true" />
@@ -3701,8 +4111,11 @@ onBeforeUnmount(() => {
               <button class="action-icon-btn" :class="{ 'shuffle-active': shuffleActive }" @click="shuffleActive = !shuffleActive" title="随机播放">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.788 3.702a1 1 0 0 1 1.414-1.414L23.914 6l-3.712 3.712a1 1 0 1 1-1.414-1.414L20.086 7h-1.518a5 5 0 0 0-3.826 1.78l-7.346 8.73a7 7 0 0 1-5.356 2.494H1v-2h1.04a5 5 0 0 0 3.826-1.781l7.345-8.73A7 7 0 0 1 18.569 5h1.518l-1.298-1.298z"/><path d="M18.788 14.289a1 1 0 0 0 0 1.414L20.086 17h-1.518a5 5 0 0 1-3.826-1.78l-1.403-1.668-1.306 1.554 1.178 1.4A7 7 0 0 0 18.568 19h1.518l-1.298 1.298a1 1 0 1 0 1.414 1.414L23.914 18l-3.712-3.713a1 1 0 0 0-1.414 0zM7.396 6.49l2.023 2.404-1.307 1.553-2.246-2.67a5 5 0 0 0-3.826-1.78H1v-2h1.04A7 7 0 0 1 7.396 6.49"/></svg>
               </button>
-              <button class="action-icon-btn" title="更多">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4.5 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m15 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m-7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3"/></svg>
+              <button v-if="artistDetail.artist?.name !== userNickName"
+                class="artist-follow-btn"
+                :class="{ followed: followedArtistIds.has(artistDetail.artist?.id) }"
+                @click.stop="handleToggleFollow(artistDetail.artist)">
+                {{ followedArtistIds.has(artistDetail.artist?.id) ? '已关注' : '关注' }}
               </button>
             </div>
           </div>
@@ -3738,7 +4151,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <div class="song-col-album">{{ song.albumName || '鈥' }}</div>
+              <div class="song-col-album">{{ song.albumName || '…' }}</div>
               <div class="song-col-add">
                 <button class="song-action-btn" :class="{ liked: likedSongIds.has(song.id) }" :title="likedSongIds.has(song.id) ? '取消收藏' : '收藏'" @click.stop="handleLikeSong(song)">
                   <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
@@ -3748,10 +4161,73 @@ onBeforeUnmount(() => {
               <div class="song-col-duration">
                 {{ formatDuration(song.duration) }}
               </div>
-              <div class="song-col-more">
-                <button class="song-action-btn" title="更多" @click.stop>
+              <div class="song-col-more song-menu-wrapper">
+                <button class="song-action-btn" title="更多" @click.stop="toggleSongMenu(song, $event)">
                   <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m6.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0M16 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/></svg>
                 </button>
+                <div v-if="activeSongMenuId === song.id" v-click-outside="closeSongMenu" class="song-popup-menu" :style="songMenuStyle" @click.stop>
+                  <div class="song-popup-menu-item has-submenu" @mouseenter="openPlaylistSubmenu(song, $event)" @mouseleave="closePlaylistSubmenu">
+                    <div class="menu-left">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M15.25 8a.75.75 0 0 1-.75.75H8.75v5.75a.75.75 0 0 1-1.5 0V8.75H1.5a.75.75 0 0 1 0-1.5h5.75V1.5a.75.75 0 0 1 1.5 0v5.75h5.75a.75.75 0 0 1 .75.75"/></svg>
+                      <span>加入歌单</span>
+                    </div>
+                    <div class="menu-right">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6 2l6 6-6 6z"/></svg>
+                    </div>
+                    <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop @mouseenter="cancelSubmenuCloseTimer" @mouseleave="closePlaylistSubmenu">
+                      <div class="submenu-search-wrapper">
+                        <svg class="submenu-search-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M7 1.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5M0 7a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 0 7"/></svg>
+                        <input v-model="playlistSearchQuery" class="submenu-search-input" placeholder="查找播放列表" @click.stop />
+                      </div>
+                      <div class="submenu-create-btn" @click="handleCreatePlaylistAndAdd">
+                        <div class="submenu-create-icon">
+                          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M15.25 8a.75.75 0 0 1-.75.75H8.75v5.75a.75.75 0 0 1-1.5 0V8.75H1.5a.75.75 0 0 1 0-1.5h5.75V1.5a.75.75 0 0 1 1.5 0v5.75h5.75a.75.75 0 0 1 .75.75"/></svg>
+                        </div>
+                        <span>新建播放列表</span>
+                      </div>
+                      <div class="submenu-list">
+                        <div v-for="pl in filteredMyPlaylists" :key="pl.id" class="submenu-item" @click="handleAddToPlaylistConfirm(pl)">
+                          <div class="submenu-item-cover" :style="pl.coverUrl ? { backgroundImage: `url(${imgUrl(pl.coverUrl, pl.coverNetworkUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}">
+                            <span v-if="!pl.coverUrl" class="submenu-item-cover-text">{{ pl.name.charAt(0) }}</span>
+                          </div>
+                          <div class="submenu-item-name">{{ pl.name }}</div>
+                        </div>
+                        <div v-if="filteredMyPlaylists.length === 0" class="submenu-empty">没有找到播放列表</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="song-popup-menu-item" @click="handleLikeSong(song); closeSongMenu()">
+                    <div class="menu-left">
+                      <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
+                      <svg v-else viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
+                      <span>{{ likedSongIds.has(song.id) ? '从已点赞的歌曲中移除' : '收藏至你已点赞的歌曲' }}</span>
+                    </div>
+                  </div>
+                  <div class="song-popup-menu-item" @click="handleAddToQueue(song)">
+                    <div class="menu-left">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M16 15H2v-1.5h14zm0-4.5H2V9h14zm-8.034-6A5.5 5.5 0 0 1 7.187 6H13.5a2.5 2.5 0 0 0 0-5H7.966c.159.474.255.978.278 1.5H13.5a1 1 0 1 1 0 2zM2 2V0h1.5v2h2v1.5h-2v2H2v-2H0V2z"/></svg>
+                      <span>加入播放队列</span>
+                    </div>
+                  </div>
+                  <div class="song-popup-menu-item" @click="handleGoToArtist(song)">
+                    <div class="menu-left">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.757 2.987A4.36 4.36 0 0 0 7.618 0a4.36 4.36 0 0 0-4.139 2.987 5.5 5.5 0 0 0-.22 1.894 5.6 5.6 0 0 0 1.4 3.312l.125.152a.748.748 0 0 1-.2 1.128l-2.209 1.275A4.75 4.75 0 0 0 0 14.857v1.142h8.734A5.5 5.5 0 0 1 8.15 14.5H1.517a3.25 3.25 0 0 1 1.6-2.454l2.21-1.275a2.25 2.25 0 0 0 .6-3.386l-.128-.153a4.1 4.1 0 0 1-1.05-2.44A4 4 0 0 1 4.89 3.47a2.8 2.8 0 0 1 1.555-1.713 2.89 2.89 0 0 1 3.293.691c.265.296.466.644.589 1.022.12.43.169.876.144 1.322a4.12 4.12 0 0 1-1.052 2.44l-.127.153a2.24 2.24 0 0 0-.2 2.58c.338-.45.742-.845 1.2-1.173 0-.162.055-.32.156-.447l.126-.152a5.6 5.6 0 0 0 1.4-3.312 5.5 5.5 0 0 0-.218-1.894zm3.493 3.771a.75.75 0 0 0-.75.75v3.496h-1a2.5 2.5 0 0 0-2.31 1.542 2.497 2.497 0 0 0 1.822 3.406A2.502 2.502 0 0 0 16 13.502V7.508a.75.75 0 0 0-.75-.75m-.75 6.744a.998.998 0 0 1-1.707.707 1 1 0 0 1 .707-1.706h1z"/></svg>
+                      <span>转至艺人</span>
+                    </div>
+                  </div>
+                  <div class="song-popup-menu-item" @click="handleGoToAlbum(song)">
+                    <div class="menu-left">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M8 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M5 8a3 3 0 1 1 6 0 3 3 0 0 1-6 0"/></svg>
+                      <span>转至专辑</span>
+                    </div>
+                  </div>
+                  <div class="song-popup-menu-item" @click="handleViewCredits(song)">
+                    <div class="menu-left">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M16 8.328V1h-1.5v4.828h-1a2.5 2.5 0 1 0 2.5 2.5m-2.5-1h1v1a1 1 0 1 1-1-1m-4.5 3V4H7.5v3.828h-1a2.5 2.5 0 1 0 2.5 2.5m-2.5-1h1v1a1 1 0 1 1-1-1M0 14.5h16V16H0zM2 10H0v1.5h2zM0 5.5h4V7H0zM12 1H0v1.5h12z"/></svg>
+                      <span>查看制作人</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -3785,7 +4261,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="album-card-info">
                   <div class="album-card-name">{{ album.name }}</div>
-                  <div class="album-card-meta">{{ album.releaseDate?.substring(0, 4) || '' }} 路 {{ ['Single','EP','Album','Compilation'][album.type] || 'Album' }}</div>
+                  <div class="album-card-meta">{{ album.releaseDate?.substring(0, 4) || '' }} · {{ ['Single','EP','Album','Compilation'][album.type] || 'Album' }}</div>
                 </div>
               </div>
             </div>
@@ -3796,6 +4272,162 @@ onBeforeUnmount(() => {
         <div v-else-if="currentView === 'artist' && loadingArtist" class="playlist-loading">
           加载中...
         </div>
+
+
+        <!-- Browse View -->
+        <div v-else-if="currentView === 'browse'" class="browse-view">
+          <div class="browse-header">
+            <h1 class="browse-title">浏览所有</h1>
+          </div>
+          <div class="browse-grid">
+            <div v-for="cat in browseCategoriesData" :key="cat.id" class="browse-card" :style="{ background: cat.color }" @click="handleBrowseCardClick(cat)">
+              <div class="browse-card-title">{{ cat.name }}</div>
+              <div class="browse-card-img-wrap">
+                <div v-if="cat.image" class="browse-card-img" :style="{ backgroundImage: 'url(' + cat.image + ')' }"></div>
+                <div v-else class="browse-card-img-placeholder"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Browse Category Detail View -->
+        <div v-else-if="currentView === 'browseDetail'" class="browse-detail-view" :style="showLeaderboardDetail ? { background: '#121212', display: 'flex', flexDirection: 'column' } : { background: browseSelectedCategory?.color || '#333' }">
+          <!-- Header（排行榜详情页隐藏，因为 playlist-detail 自带完整布局） -->
+          <template v-if="!(browseSelectedCategory?.id === 9 && showLeaderboardDetail)">
+            <div class="browse-black-overlay"></div>
+            <div class="playlist-bg-section">
+              <div style="position: relative; z-index: 2; padding: 24px 24px 0px 24px;">
+                <button class="browse-back-btn" @click="currentView = 'browse'">
+                  <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor"><path d="M11.03 3.97a.75.75 0 0 1 0 1.06L7.56 8.5l3.47 3.47a.75.75 0 0 1-1.06 1.06l-4-4a.75.75 0 0 1 0-1.06l4-4a.75.75 0 0 1 1.06 0z"/></svg>
+                </button>
+                <h1 class="browse-detail-title">{{ browseSelectedCategory?.name }}</h1>
+              </div>
+            </div>
+          </template>
+          <div class="browse-detail-content" v-if="browseSelectedCategory?.id === 9" :style="showLeaderboardDetail ? { padding: 0, marginTop: 0, background: 'transparent', flex: 1, display: 'flex', flexDirection: 'column' } : {}">
+            <!-- 二级：排行榜歌曲列表（完全复用歌单详情页布局） -->
+            <div v-if="showLeaderboardDetail" class="playlist-detail" :style="{ background: 'linear-gradient(to bottom, #503750 0%, #121212 100%)', flex: 1 }">
+              <div class="playlist-black-overlay"></div>
+              <!-- 返回按钮 -->
+              <div style="position:relative;z-index:5;padding:16px 24px 0;">
+                <button class="browse-back-btn" @click="showLeaderboardDetail = false" style="position:static;">
+                  <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor"><path d="M11.03 3.97a.75.75 0 0 1 0 1.06L7.56 8.5l3.47 3.47a.75.75 0 0 1-1.06 1.06l-4-4a.75.75 0 0 1 0-1.06l4-4a.75.75 0 0 1 1.06 0z"/></svg>
+                </button>
+              </div>
+              <div class="playlist-bg-section">
+                <div class="playlist-header" style="flex-direction: row; align-items: flex-end;">
+                  <div class="playlist-cover">
+                    <img src="https://spotify-remake.oss-cn-beijing.aliyuncs.com/datas/view/rank/region_global_default.jpg" alt="全球前50名" />
+                  </div>
+                  <div class="playlist-info">
+                    <span class="playlist-type">排行榜</span>
+                    <h1 class="playlist-title">全球前 50 名</h1>
+                    <div class="playlist-profile" style="color:#b3b3b3;font-size:14px;">每日更新的全球当前最热播曲目。</div>
+                    <div class="playlist-brand">
+                      <img src="./assets/spotify_242118.png" alt="Spotify" class="playlist-brand-logo" />
+                      <span class="playlist-brand-name">SPOTIFY REMAKE</span>
+                    </div>
+                    <div class="playlist-meta">
+                      <span>{{ leaderboardSongs.length }} 首歌</span>
+                      <span class="meta-dot">·</span>
+                      <span>约{{ Math.round(leaderboardTotalDuration / 60) }} 分钟</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="playlist-actions">
+                  <button class="play-btn-large" @click="leaderboardSongs.length && playSong(mapLeaderboardSong(leaderboardSongs[0]), leaderboardSongs.map(mapLeaderboardSong))">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                  <button class="action-icon-btn" :class="{ 'shuffle-active': shuffleActive }" title="启用随机播放" @click="toggleShuffle(); leaderboardSongs.length && playSong(mapLeaderboardSong(leaderboardSongs[0]), leaderboardSongs.map(mapLeaderboardSong))">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                      <path d="M18.788 3.702a1 1 0 0 1 1.414-1.414L23.914 6l-3.712 3.712a1 1 0 1 1-1.414-1.414L20.086 7h-1.518a5 5 0 0 0-3.826 1.78l-7.346 8.73a7 7 0 0 1-5.356 2.494H1v-2h1.04a5 5 0 0 0 3.826-1.781l7.345-8.73A7 7 0 0 1 18.569 5h1.518l-1.298-1.298z"/>
+                      <path d="M18.788 14.289a1 1 0 0 0 0 1.414L20.086 17h-1.518a5 5 0 0 1-3.826-1.78l-1.403-1.668-1.306 1.554 1.178 1.4A7 7 0 0 0 18.568 19h1.518l-1.298 1.298a1 1 0 1 0 1.414 1.414L23.914 18l-3.712-3.713a1 1 0 0 0-1.414 0zM7.396 6.49l2.023 2.404-1.307 1.553-2.246-2.67a5 5 0 0 0-3.826-1.78H1v-2h1.04A7 7 0 0 1 7.396 6.49"/>
+                    </svg>
+                  </button>
+                  <button class="action-icon-btn" title="下载">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                      <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M1 12C1 5.925 5.925 1 12 1s11 4.925 11 11-4.925 11-11 11S1 18.075 1 12"/>
+                      <path d="M12 6.05a1 1 0 0 1 1 1v7.486l1.793-1.793a1 1 0 1 1 1.414 1.414L12 18.364l-4.207-4.207a1 1 0 1 1 1.414-1.414L11 14.536V7.05a1 1 0 0 1 1-1"/>
+                    </svg>
+                  </button>
+                  <button class="action-icon-btn" title="更多">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4.5 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m15 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m-7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="playlist-content-section">
+                <div v-if="loadingLeaderboard" style="text-align:center;padding:40px;color:#b3b3b3;">加载中…</div>
+                <div v-else-if="!leaderboardSongs.length" style="text-align:center;padding:40px;color:#b3b3b3;">暂无排行数据，快去播放歌曲吧！</div>
+                <div v-else class="song-table">
+                  <div class="song-table-header">
+                    <div class="song-col-num">#</div>
+                    <div class="song-col-title">标题</div>
+                    <div class="song-col-album">播放量</div>
+                    <div class="song-col-add"></div>
+                    <div class="song-col-duration">
+                      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"/><path d="M8 3.25a.75.75 0 0 1 .75.75v3.25H11a.75.75 0 0 1 0 1.5H7.25V4A.75.75 0 0 1 8 3.25z"/></svg>
+                    </div>
+                    <div class="song-col-more"></div>
+                  </div>
+                  <div v-for="(song, index) in leaderboardSongs" :key="song.id" class="song-row" @click="playSong(mapLeaderboardSong(song), leaderboardSongs.map(mapLeaderboardSong))">
+                    <div class="song-col-num" @click.stop="playSong(mapLeaderboardSong(song), leaderboardSongs.map(mapLeaderboardSong))">
+                      <span class="song-num-text">{{ song.rank || index + 1 }}</span>
+                      <span class="song-play-icon">
+                        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.288z"/></svg>
+                      </span>
+                    </div>
+                    <div class="song-col-title">
+                      <img v-if="song.coverUrl || song.coverNetworkUrl" :src="imgUrl(song.coverUrl, song.coverNetworkUrl)" class="song-thumb" :alt="song.title" />
+                      <svg v-else class="song-thumb" viewBox="0 0 24 24" width="40" height="40" fill="#5e5e5e"><rect width="24" height="24" fill="#282828"/><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                      <div class="song-title-info">
+                        <div class="song-title-text">{{ song.title }}<span v-if="song.externalSource" class="external-tag">外部</span></div>
+                        <div class="song-artist-text">
+                          <template v-for="(name, i) in (song.artistName || '未知艺人').split(',').map(s => s.trim())" :key="i">
+                            <span v-if="i > 0">, </span>
+                            <a class="song-artist-link" @click.stop="goToArtistByName(name)">{{ name }}</a>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="song-col-album">{{ formatPlayCount(song.playCount) }}</div>
+                    <div class="song-col-add">
+                      <button class="song-action-btn" :class="{ liked: likedSongIds.has(song.id) }" :title="likedSongIds.has(song.id) ? '取消收藏' : '收藏'" @click.stop="handleLikeLeaderboardSong(song)">
+                        <svg v-if="likedSongIds.has(song.id)" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="8" fill="#1db954"/><path d="M6.5 11.5L3.5 8.5l1-1 2 2 4.5-4.5 1 1z" fill="#fff"/></svg>
+                        <svg v-else viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M11.75 8a.75.75 0 0 1-.75.75H8.75V11a.75.75 0 0 1-1.5 0V8.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 1.5 0v2.25H11a.75.75 0 0 1 .75.75"/></svg>
+                      </button>
+                    </div>
+                    <div class="song-col-duration">
+                      {{ formatDuration(song.duration) }}
+                    </div>
+                    <div class="song-col-more song-menu-wrapper">
+                      <button class="song-action-btn" title="更多" @click.stop="toggleSongMenu(mapLeaderboardSong(song), $event)">
+                        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m6.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0M16 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 一级：精选排行榜卡牌 -->
+            <div v-else>
+              <div class="browse-detail-section">
+                <h2 class="browse-detail-section-title">精选排行榜</h2>
+                <div class="browse-detail-grid">
+                  <div class="browse-detail-card" @click="openLeaderboard()">
+                    <div class="browse-detail-card-img-wrap">
+                      <img class="browse-detail-card-img" src="https://spotify-remake.oss-cn-beijing.aliyuncs.com/datas/view/rank/region_global_default.jpg" alt="全球前50名" />
+                      <div class="browse-detail-card-play-btn">
+                        <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor"><path d="M4.018 14L14.41 8 4.018 2z"/></svg>
+                      </div>
+                    </div>
+                    <div class="browse-detail-card-name">全球前 50 名</div>
+                    <div class="browse-detail-card-desc">每日更新的全球当前最热播曲目。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
 
         <!-- Home View -->
         <div v-else class="right-content">
@@ -4019,7 +4651,12 @@ onBeforeUnmount(() => {
                   <div class="side-panel-artist-listeners" v-if="sidePanelArtist?.monthlyListeners != null">
                     每月有{{ formatNumber(sidePanelArtist.monthlyListeners) }}名听众
                   </div>
-                  <button class="side-panel-follow-btn">关注</button>
+                  <button v-if="sidePanelArtist?.name !== userNickName"
+                    class="side-panel-follow-btn"
+                    :class="{ followed: followedArtistIds.has(sidePanelArtist?.id) }"
+                    @click.stop="handleToggleFollow(sidePanelArtist)">
+                    {{ followedArtistIds.has(sidePanelArtist?.id) ? '已关注' : '关注' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -4043,7 +4680,7 @@ onBeforeUnmount(() => {
                 <div class="menu-right">
                   <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6 2l6 6-6 6z"/></svg>
                 </div>
-                <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop>
+                <div v-if="showPlaylistSubmenu" class="playlist-submenu" :class="{ 'open-left': submenuOpenLeft, 'open-right': !submenuOpenLeft }" @click.stop @mouseenter="cancelSubmenuCloseTimer" @mouseleave="closePlaylistSubmenu">
                   <div class="submenu-search-wrapper">
                     <svg class="submenu-search-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M7 1.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5M0 7a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 0 7"/></svg>
                     <input v-model="playlistSearchQuery" class="submenu-search-input" placeholder="查找播放列表" @click.stop />
@@ -4105,7 +4742,7 @@ onBeforeUnmount(() => {
       <div class="footer-left">
         <div class="now-playing-img" :class="{ 'panel-active': showSidePanel }" @click="showSidePanel = !showSidePanel" :style="currentSong?.coverUrl || currentSong?.coverNetworkUrl ? { backgroundImage: `url(${encodeURI(imgUrl(currentSong.coverUrl, currentSong.coverNetworkUrl))})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: '#d4bcad' }"></div>
         <div class="now-playing-info">
-          <div class="now-playing-title">{{ currentSong?.title || '鈥' }}</div>
+          <div class="now-playing-title">{{ currentSong?.title || '无标题' }}</div>
           <div class="now-playing-artist">
             <template v-if="currentSong?.artist">
               <template v-for="(name, i) in currentSong.artist.split(',').map(s => s.trim()).filter(Boolean)" :key="i">
@@ -4560,7 +5197,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="crop-modal-hint">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
-              <span>拖动调整位置 路 滚轮缩放</span>
+              <span>拖动调整位置 · 滚轮缩放</span>
             </div>
           </div>
           <div class="crop-modal-footer">
@@ -4694,7 +5331,6 @@ onBeforeUnmount(() => {
                 <span>歌词加载中...</span>
               </div>
               <div v-else-if="expandLyrics.length" class="lyrics-scroll" ref="lyricsScrollRef">
-                <div class="lyrics-padding-top"></div>
                 <div
                   v-for="(line, i) in expandLyrics"
                   :key="i"
@@ -4703,7 +5339,12 @@ onBeforeUnmount(() => {
                     'lyric-active': i === expandActiveLyricIndex,
                     'lyric-passed': i < expandActiveLyricIndex
                   }"
-                >{{ line.text }}</div>
+                  :style="{ opacity: lyricOpacity(i) }"
+                  @click="seekToLyric(line.time)"
+                 >
+                  <span class="lyric-orig">{{ line.text }}</span>
+                  <span class="lyric-trans" v-if="line.ttext">{{ line.ttext }}</span>
+                </div>
                 <div class="lyrics-padding-bottom"></div>
               </div>
               <div v-else class="lyrics-placeholder">
@@ -4719,12 +5360,3 @@ onBeforeUnmount(() => {
     </Transition>
   </div>
 </template>
-
-
-
-
-
-
-
-
-

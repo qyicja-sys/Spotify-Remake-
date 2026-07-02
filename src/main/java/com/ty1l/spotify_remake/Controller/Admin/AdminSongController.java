@@ -3,8 +3,10 @@ package com.ty1l.spotify_remake.Controller.Admin;
 import com.ty1l.spotify_remake.Entity.Public.Artist;
 import com.ty1l.spotify_remake.Entity.Public.Song;
 import com.ty1l.spotify_remake.Entity.Public.SongArtist;
-import com.ty1l.spotify_remake.Mapper.Public.ArtistMapper;
+import com.ty1l.spotify_remake.Service.CacheService;
+import com.ty1l.spotify_remake.Service.Public.ArtistService;
 import com.ty1l.spotify_remake.Mapper.Public.SongArtistMapper;
+import com.ty1l.spotify_remake.Mapper.Public.ArtistMapper;
 import com.ty1l.spotify_remake.Service.Public.SongService;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
 import com.ty1l.spotify_remake.utility.Result;
@@ -28,10 +30,16 @@ public class AdminSongController {
     private SongService songService;
 
     @Autowired
+    private ArtistService artistService;
+
+    @Autowired
     private ArtistMapper artistMapper;
 
     @Autowired
     private SongArtistMapper songArtistMapper;
+
+    @Autowired
+    private CacheService cacheService;
 
     @GetMapping
     public Result list() {
@@ -166,6 +174,9 @@ public class AdminSongController {
         // 保存歌曲-艺术家关系
         saveSongArtists(song.getId(), song.getArtistId(), body.get("featuredArtistIds"));
 
+        // 使相关缓存失效
+        evictArtistAndHome(song.getArtistId());
+
         return Result.success("Song added successfully");
     }
 
@@ -181,10 +192,19 @@ public class AdminSongController {
         if (body.get("fileUrl") != null) song.setFileUrl((String) body.get("fileUrl"));
 
         log.info("Update song: {}", song);
+        // 获取旧歌曲信息用于清理旧艺人缓存
+        Song oldSong = songService.findById(id);
         songService.update(song);
 
         // 重新保存歌曲-艺术家关系
         saveSongArtists(id, song.getArtistId(), body.get("featuredArtistIds"));
+
+        // 使相关缓存失效（旧艺人和新艺人）
+        if (oldSong != null && oldSong.getArtistId() != null) {
+            String oldKey = String.format(CacheService.KEY_ARTIST, oldSong.getArtistId());
+            cacheService.evictBoth(oldKey);
+        }
+        evictArtistAndHome(song.getArtistId());
 
         return Result.success("Song updated successfully");
     }
@@ -215,8 +235,25 @@ public class AdminSongController {
     @DeleteMapping("/{id}")
     public Result delete(@PathVariable Integer id) {
         log.info("Delete song id: {}", id);
+        Song oldSong = songService.findById(id);
         songService.delete(id);
+
+        // 使相关缓存失效
+        if (oldSong != null) {
+            evictArtistAndHome(oldSong.getArtistId());
+        } else {
+            cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
+        }
+
         return Result.success("Song deleted successfully");
+    }
+
+    /** 使艺人缓存和主页版本号失效 */
+    private void evictArtistAndHome(Integer artistId) {
+        if (artistId != null) {
+            cacheService.evictBoth(String.format(CacheService.KEY_ARTIST, artistId));
+        }
+        cacheService.incrVersion(CacheService.KEY_VERSION_HOME);
     }
 
     @PostMapping("/upload")
@@ -229,15 +266,10 @@ public class AdminSongController {
             // 查找或创建艺术家
             Integer artistId = null;
             if (!artistName.isBlank()) {
-                Artist artist = artistMapper.findByName(artistName.trim());
-                if (artist != null) {
-                    artistId = artist.getId();
-                } else {
-                    Artist newArtist = new Artist();
-                    newArtist.setName(artistName.trim());
-                    artistMapper.insert(newArtist);
-                    artistId = newArtist.getId();
-                    log.info("Auto-created artist: {} (id={})", artistName, artistId);
+                List<Artist> resolved = artistService.resolveOrCreateArtists(new String[]{ artistName.trim() });
+                if (!resolved.isEmpty()) {
+                    artistId = resolved.get(0).getId();
+                    log.info("Auto-resolved artist: {} (id={})", artistName, artistId);
                 }
             }
 

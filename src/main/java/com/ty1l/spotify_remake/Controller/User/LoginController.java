@@ -1,6 +1,7 @@
 package com.ty1l.spotify_remake.Controller.User;
 
 import com.ty1l.spotify_remake.Entity.User.HomeDashboardVO;
+import com.ty1l.spotify_remake.Entity.User.LoginInfoVo;
 import com.ty1l.spotify_remake.Entity.User.LoginUser;
 import com.ty1l.spotify_remake.Service.User.LoginService;
 import com.ty1l.spotify_remake.utility.Result;
@@ -24,6 +25,15 @@ public class LoginController {
         log.info("Login: {}", user);
         HomeDashboardVO homeDashboardVO = loginService.Login(user);
         return Result.success(homeDashboardVO);
+    }
+
+    // 刷新Token（用 Refresh Token 换取新的 Access Token + Refresh Token）
+    @PostMapping(value = "/token/refresh")
+    public Result refreshToken(@RequestBody Map<String, String> map) {
+        String refreshToken = map.get("refreshToken");
+        log.info("Token refresh requested");
+        LoginInfoVo newTokens = loginService.refresh(refreshToken);
+        return Result.success(newTokens);
     }
 
     // 忘记密码

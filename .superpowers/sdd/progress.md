@@ -1,5 +1,0 @@
-Task 1: complete (commits fd87d08..ca76891, review clean)
-Task 2: complete (commits fd87d08..ca76891, review clean)
-Task 3: complete (commits fd87d08..ca76891, review clean)
-Task 4: complete (commits fd87d08..ca76891, review clean)
-Task 5: complete (commits fd87d08..ca76891, review clean)

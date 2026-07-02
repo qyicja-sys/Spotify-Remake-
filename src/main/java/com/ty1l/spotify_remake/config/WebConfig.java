@@ -39,7 +39,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "/spotify/login",
                         "/spotify/signup",
                         "/spotify/login/forgetPassword",
+                        "/spotify/token/refresh",
+                        "/spotify/home",
+                        "/spotify/search",
+                        "/spotify/artist/*",
+                        "/spotify/artists/**",
+                        "/spotify/album/**",
                         "/spotify/external/**",
+                        "/spotify/lyrics/**",
                         "/captcha/get",
                         "/captcha/check",
                         "/spotify",
@@ -48,13 +55,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "/static/datas/**",
                         "/error",
                         "/uploads/**",
-                        "/songs/**",
+                        "/stream/songs/*/stream-url",
+                        "/stream/songs/external/*/*/stream-url",
                         "/admin/**"
                 );
 
         registry.addInterceptor(adminTokenInterceptor)
                 .addPathPatterns("/admin/spotify/**")
-                .excludePathPatterns("/admin/spotify/login");
+                .excludePathPatterns("/admin/spotify/login", "/admin/spotify/token/refresh");
     }
 
     @Override
@@ -73,10 +81,6 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/spotify-cms/**")
                 .addResourceLocations("classpath:/static/spotify-cms/");
 
-        // 1. 前端访问的虚拟路径：/songs/**
-        // 2. 本地实际的物理路径：file:D:/music_test/ （注意最后有一个斜杠）
-        registry.addResourceHandler("/songs/**")
-                .addResourceLocations("file:D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/music/musics/");
         /*
          * 1. /uploads/** 是前端访问的 URL 路径占位符
          * 2. file:D:/spotify_resources/ 或者是 Linux 路径 file:/var/spotify/

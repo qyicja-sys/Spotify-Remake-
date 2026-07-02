@@ -1,6 +1,7 @@
 package com.ty1l.spotify_remake.Service.User;
 
 import com.ty1l.spotify_remake.Entity.User.HomeDashboardVO;
+import com.ty1l.spotify_remake.Entity.User.LoginInfoVo;
 import com.ty1l.spotify_remake.Entity.User.LoginUser;
 import com.ty1l.spotify_remake.Entity.User.PlaylistBriefVO;
 
@@ -16,4 +17,7 @@ public interface LoginService {
 
     //补全歌单图片url
     public List<PlaylistBriefVO> completePlaylistCoverUrl(List<PlaylistBriefVO> playlists);
+
+    //刷新Token
+    public LoginInfoVo refresh(String refreshToken);
 }

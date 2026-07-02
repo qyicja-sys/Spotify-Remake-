@@ -34,11 +34,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/", "/index.html", "/main.html",
                                 "/spotify/login", "/spotify/signup", "/spotify/login/forgetPassword",
+                                "/spotify/token/refresh",
                                 "/spotify/home", "/spotify/search", "/spotify/profile/**",
                                 "/spotify/artists/**", "/spotify/artist/**",
                                 "/spotify/external/**",
                                 "/spotify/playlist/**",
                                 "/spotify/album/**",
+                                "/spotify/lyrics/**",
+                                "/spotify/playback/**",
+                                "/spotify/leaderboard/**",
                                 "/stream/**",
                                 "/captcha/get", "/captcha/check",
                                 "/admin/spotify/**"

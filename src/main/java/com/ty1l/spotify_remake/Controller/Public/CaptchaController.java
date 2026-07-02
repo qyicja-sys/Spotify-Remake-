@@ -27,11 +27,13 @@ public class CaptchaController {
 
     /**
      * 获取验证码（滑块/点选）
-     * <p>前端 AJ-Captcha SDK 发起 POST，body 含 {@code captchaType: "blockPuzzle"}。</p>
+     * <p>前端 AJ-Captcha SDK 发起 POST，body 含 {@code captchaType: "blockPuzzle"}。
+     * 先行注入 browserInfo（客户端 IP），匹配原 CaptchaController 行为。</p>
      */
     @PostMapping("/captcha/get")
     public ResponseModel getCaptcha(@RequestBody CaptchaVO captchaVO, HttpServletRequest request) {
-        log.debug("验证码获取请求: captchaType={}", captchaVO.getCaptchaType());
+        captchaVO.setBrowserInfo(getRemoteId(request));
+        log.debug("验证码获取请求: captchaType={}, browserInfo={}", captchaVO.getCaptchaType(), captchaVO.getBrowserInfo());
         return captchaService.get(captchaVO);
     }
 
@@ -41,7 +43,21 @@ public class CaptchaController {
      */
     @PostMapping("/captcha/check")
     public ResponseModel checkCaptcha(@RequestBody CaptchaVO captchaVO, HttpServletRequest request) {
+        captchaVO.setBrowserInfo(getRemoteId(request));
         log.debug("验证码校验请求: captchaType={}", captchaVO.getCaptchaType());
         return captchaService.check(captchaVO);
+    }
+
+    /**
+     * 提取客户端唯一标识（优先 X-Forwarded-For，否则取 remoteAddr）。
+     * 与原 AJ-Captcha CaptchaController#getRemoteId 逻辑一致。
+     */
+    private static String getRemoteId(HttpServletRequest request) {
+        String xfwd = request.getHeader("X-Forwarded-For");
+        if (xfwd != null && !xfwd.isEmpty()) {
+            // X-Forwarded-For 可能包含多个 IP（逗号分隔），取第一个
+            return xfwd.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

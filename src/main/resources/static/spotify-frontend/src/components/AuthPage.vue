@@ -4,7 +4,7 @@ import spotifyLogo from '../assets/spotify_242118.svg'
 import playImage from '../assets/播放.png'
 import forwardImage from '../assets/快进.png'
 import musicImage from '../assets/音乐.png'
-import CaptchaVerify from './CaptchaVerify.vue'
+import CaptchaModal from './CaptchaModal.vue'
 import { login, resetPassword, signUp } from '../api/auth'
 
 const email = ref('')
@@ -498,7 +498,7 @@ function handleLanguageChange() {
       </div>
     </div>
 
-    <CaptchaVerify
+    <CaptchaModal
       :visible="captchaVerifyVisible"
       @close="captchaVerifyVisible = false"
       @success="onCaptchaSuccess"

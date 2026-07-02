@@ -25,6 +25,8 @@ public class SignUpServiceiml implements SignUpService {
     private SignUpMapper signUpMapper;
     @Autowired
     private ArtistMapper artistMapper;
+    @Autowired
+    private CaptchaVerifier captchaVerifier;
 
 
 
@@ -32,7 +34,7 @@ public class SignUpServiceiml implements SignUpService {
     public LoginInfoVo signUp(signUpInfo signUpInfo) {
         // ================== 新增：验证码二次核验 ==================
         String token = signUpInfo.getToken();
-        if (CaptchaVerifier.verify(token)==false) {
+        if (captchaVerifier.verify(token)==false) {
             throw new SignUpException("Captcha verification failed, please try again.");
         }
         // =======================================================
@@ -64,7 +66,7 @@ public class SignUpServiceiml implements SignUpService {
                 Integer userId = userMapper.FindUserIdByName(signUpInfo.getUserName());
                 //向playlist插入收藏歌单
                 signUpMapper.InsertLikePlaylist(userId);
-                return new LoginInfoVo(signUpInfo.getEmail(), signUpInfo.getNickName(), "/static/datas/profilePic/default.jpg", null);
+                return new LoginInfoVo(signUpInfo.getEmail(), signUpInfo.getNickName(), "/static/datas/profilePic/default.jpg", null, null);
             }
         } catch (DuplicateKeyException e) {
             // 捕获数据库唯一键冲突异常

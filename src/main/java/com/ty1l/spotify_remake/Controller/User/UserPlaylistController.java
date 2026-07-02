@@ -1,6 +1,7 @@
 package com.ty1l.spotify_remake.Controller.User;
 
 import com.ty1l.spotify_remake.Entity.Public.ExternalTrackVO;
+import com.ty1l.spotify_remake.Service.CacheService;
 import com.ty1l.spotify_remake.Service.User.UserPlaylistService;
 import com.ty1l.spotify_remake.utility.BaseContext;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
@@ -20,6 +21,25 @@ public class UserPlaylistController {
     @Autowired
     private UserPlaylistService userPlaylistService;
 
+    @Autowired
+    private CacheService cacheService;
+
+    /** 清除当前用户的主页缓存 */
+    private void evictHome() {
+        Long userId = BaseContext.getCurrentId();
+        if (userId != null) {
+            cacheService.evictBoth(String.format(CacheService.KEY_HOME, userId));
+        }
+    }
+
+    /** 清除当前用户的个人主页缓存 */
+    private void evictProfile() {
+        Long userId = BaseContext.getCurrentId();
+        if (userId != null) {
+            cacheService.evictBoth(String.format(CacheService.KEY_PROFILE, userId));
+        }
+    }
+
     /**
      * 收藏本地歌曲
      */
@@ -32,6 +52,8 @@ public class UserPlaylistController {
         }
         try {
             userPlaylistService.likeSong(userId, songId);
+            evictProfile();
+            evictProfile();
             return Result.success();
         } catch (Exception e) {
             log.error("收藏歌曲失败", e);
@@ -65,6 +87,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.unlikeSong(userId, songId);
+            evictProfile();
             return Result.success();
         } catch (Exception e) {
             log.error("取消收藏失败", e);
@@ -94,6 +117,7 @@ public class UserPlaylistController {
         }
         try {
             userPlaylistService.addSongToPlaylist(userId, playlistId, songId);
+            evictHome();
             return Result.success();
         } catch (Exception e) {
             log.error("添加歌曲到歌单失败", e);
@@ -109,6 +133,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.removeSongFromPlaylist(userId, playlistId, songId);
+            evictHome();
             return Result.success();
         } catch (Exception e) {
             log.error("从歌单移除歌曲失败", e);
@@ -131,6 +156,7 @@ public class UserPlaylistController {
                 coverUrl = FileUploadUtil.savePersonalPlaylistCover(cover, userId, playlistId);
             }
             userPlaylistService.editPlaylist(userId, playlistId, title, profile, coverUrl);
+            evictHome();
             return Result.success("歌单已更新");
         } catch (Exception e) {
             log.error("编辑歌单失败", e);
@@ -146,6 +172,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.deletePlaylist(userId, playlistId);
+            evictHome();
             return Result.success("歌单已删除");
         } catch (Exception e) {
             log.error("删除歌单失败", e);
@@ -161,6 +188,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.collectPlaylist(userId, playlistId);
+            evictHome();
             return Result.success();
         } catch (Exception e) {
             log.error("收藏歌单失败", e);
@@ -176,6 +204,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.uncollectPlaylist(userId, playlistId);
+            evictHome();
             return Result.success();
         } catch (Exception e) {
             log.error("取消收藏歌单失败", e);
@@ -201,6 +230,7 @@ public class UserPlaylistController {
         Long userId = BaseContext.getCurrentId();
         try {
             userPlaylistService.togglePlaylistPrivacy(userId, playlistId);
+            evictHome();
             return Result.success();
         } catch (Exception e) {
             log.error("切换歌单隐私状态失败", e);

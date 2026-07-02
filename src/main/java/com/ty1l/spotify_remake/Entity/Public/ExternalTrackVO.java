@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 public class ExternalTrackVO {
     private String externalId;
     private String source;      // "gdmusic"
+    private String lyricId;     // 歌词ID，用于获取外部歌词
+    private String picId;         // 封面图片ID（用于重新获取封面）
     private String title;
     private String artistName;
     private String coverUrl;

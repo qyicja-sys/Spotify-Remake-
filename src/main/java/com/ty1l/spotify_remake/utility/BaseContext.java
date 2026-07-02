@@ -8,6 +8,7 @@ package com.ty1l.spotify_remake.utility;
 
 public class BaseContext {
     private static final ThreadLocal<Long> threadLocal = new ThreadLocal<>();
+    private static final ThreadLocal<String> versionLocal = new ThreadLocal<>();
 
     public static void setCurrentId(Long id) {
         threadLocal.set(id);
@@ -17,7 +18,16 @@ public class BaseContext {
         return threadLocal.get();
     }
 
+    public static void setCurrentVersion(String version) {
+        versionLocal.set(version);
+    }
+
+    public static String getCurrentVersion() {
+        return versionLocal.get();
+    }
+
     public static void removeCurrentId() {
-        threadLocal.remove(); // 用完记得移除，防止内存泄漏
+        threadLocal.remove();
+        versionLocal.remove();
     }
 }

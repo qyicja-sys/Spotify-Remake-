@@ -5,20 +5,19 @@ import com.ty1l.spotify_remake.Entity.Public.SearchSongVO;
 import com.ty1l.spotify_remake.Entity.User.*;
 import com.ty1l.spotify_remake.Mapper.Public.SongMapper;
 import com.ty1l.spotify_remake.Mapper.User.PlaybackHistoryMapper;
-import com.ty1l.spotify_remake.Mapper.User.UserArtistFollowMapper;
 import com.ty1l.spotify_remake.Mapper.User.UserMapper;
 import com.ty1l.spotify_remake.Mapper.User.mainWebMapper;
+import com.ty1l.spotify_remake.Service.CacheService;
 import com.ty1l.spotify_remake.Service.Public.ArtistService;
+import com.ty1l.spotify_remake.Service.Public.FollowService;
+import com.ty1l.spotify_remake.Service.Public.MonthlyListenersService;
 import com.ty1l.spotify_remake.utility.FileUploadUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,24 +41,100 @@ public class ProfileServiceiml implements ProfileService {
     private SongMapper songMapper;
 
     @Autowired
-    private UserArtistFollowMapper userArtistFollowMapper;
+    private PlaybackHistoryService playbackHistoryService;
+
+    @Autowired
+    private CacheService cacheService;
+
+    @Autowired
+    private MonthlyListenersService monthlyListenersService;
+
+    @Autowired
+    private FollowService followService;
+
+    private static final Logger log = LoggerFactory.getLogger(ProfileServiceiml.class);
 
     @Override
     public ProfileVO getProfile(Long userId) {
+        String cacheKey = String.format(CacheService.KEY_PROFILE, userId);
+
+        // 尝试从缓存读取（播放数据和艺人歌曲实时刷新，其余元数据走缓存）
+        ProfileVO cached = cacheService.get(cacheKey, ProfileVO.class);
+        if (cached != null) {
+            log.debug("Profile cache hit for userId={}", userId);
+            // 播放数据实时从 Redis ZSET 获取，Redis 空则 MySQL 兜底
+            List<Long> recentSongIds = playbackHistoryService.getRecentSongIds(userId, 50);
+            List<RecentlyPlayedSongVO> recentSongs;
+            if (recentSongIds.isEmpty()) {
+                recentSongs = playbackHistoryMapper.selectRecentSongs(userId, 50);
+                if (recentSongs == null) recentSongs = Collections.emptyList();
+            } else {
+                recentSongs = playbackHistoryService.buildRecentSongs(recentSongIds);
+            }
+            List<Long> recentArtistIds = playbackHistoryService.getRecentArtistIds(userId, 5);
+            List<RecentArtistVO> recentArtists;
+            if (recentArtistIds.isEmpty()) {
+                recentArtists = playbackHistoryMapper.selectRecentArtists(userId, 5);
+                if (recentArtists == null) recentArtists = Collections.emptyList();
+            } else {
+                recentArtists = playbackHistoryService.buildRecentArtists(recentArtistIds);
+            }
+            cached.setRecentSongs(recentSongs);
+            cached.setRecentArtists(recentArtists);
+            // Redis 冷启动：ZSET 为空时从 MySQL 回写，恢复缓存
+            if (recentSongIds.isEmpty() || recentArtistIds.isEmpty()) {
+                playbackHistoryService.syncMySQLToRedis(userId);
+            }
+            // 艺人歌曲实时刷新（艺人上传新歌后立即反映）
+            if (cached.getIsArtist() != null && cached.getIsArtist() == 1 && cached.getArtistId() != null) {
+                List<SearchSongVO> artistSongs = songMapper.findByArtistIdWithNames(cached.getArtistId());
+                if (artistSongs == null) artistSongs = Collections.emptyList();
+                if (artistSongs.size() > 10) {
+                    artistSongs = artistSongs.subList(0, 10);
+                }
+                cached.setArtistSongs(artistSongs);
+                // 月听众数实时刷新（Redis 实时 + DB 兜底）
+                int liveListeners = monthlyListenersService.getMonthlyListeners(cached.getArtistId());
+                cached.setMonthlyListeners(liveListeners);
+            }
+            return cached;
+        }
+
+        log.info("Profile cache miss for userId={}, rebuilding...", userId);
+
         // 1. 查询用户基本信息
         User user = userMapper.findById(userId);
 
         // 2. 查询公开歌单数量（不含已点赞的歌曲）
         int playlistCount = mainWebMapper.countUserPublicPlaylists(userId);
 
-        // 3. 查询关注艺人数
-        int followingCount = playbackHistoryMapper.countFollowing(userId);
+        // 3. 查询关注艺人数（Redis SET 实时计数）
+        int followingCount = followService.getFollowingCount(userId);
 
-        // 4. 查询最近播放的歌手（最多5个）
-        List<RecentArtistVO> recentArtists = playbackHistoryMapper.selectRecentArtists(userId, 5);
+        // 4. 最近播放的艺人（Redis ZSET，实时；空则 MySQL 兜底）
+        List<Long> recentArtistIds = playbackHistoryService.getRecentArtistIds(userId, 5);
+        List<RecentArtistVO> recentArtists;
+        if (recentArtistIds.isEmpty()) {
+            recentArtists = playbackHistoryMapper.selectRecentArtists(userId, 5);
+            if (recentArtists == null) recentArtists = Collections.emptyList();
+        } else {
+            recentArtists = playbackHistoryService.buildRecentArtists(recentArtistIds);
+        }
 
-        // 5. 查询最近播放的歌曲（最多50首）
-        List<RecentlyPlayedSongVO> recentSongs = playbackHistoryMapper.selectRecentSongs(userId, 50);
+        // 5. 最近播放的歌曲（Redis ZSET，实时；空则 MySQL 兜底）
+        List<Long> recentSongIds = playbackHistoryService.getRecentSongIds(userId, 50);
+        List<RecentlyPlayedSongVO> recentSongs;
+        if (recentSongIds.isEmpty()) {
+            recentSongs = playbackHistoryMapper.selectRecentSongs(userId, 50);
+            if (recentSongs == null) recentSongs = Collections.emptyList();
+        } else {
+            recentSongs = playbackHistoryService.buildRecentSongs(recentSongIds);
+        }
+
+        // Redis 冷启动：ZSET 为空时从 MySQL 回写，恢复缓存
+        if (recentSongIds.isEmpty() || recentArtistIds.isEmpty()) {
+            playbackHistoryService.syncMySQLToRedis(userId);
+        }
 
         // 6. 查询公开歌单（不含已点赞的歌曲）
         List<PlaylistBriefVO> publicPlaylists = mainWebMapper.findPublicPlaylistsByUserId(userId);
@@ -79,14 +154,14 @@ public class ProfileServiceiml implements ProfileService {
                     artistSongs = artistSongs.subList(0, 10);
                 }
                 // 查询粉丝数（关注人数）
-                fansCount = userArtistFollowMapper.countFollowersByArtistId(artist.getId());
-                // 查询本月听众数
-                monthlyListeners = playbackHistoryMapper.countMonthlyListeners(artist.getId());
+                fansCount = followService.getFollowerCount(artist.getId());
+                // 月听众数 = max(Redis实时值, DB兜底值)，保证刚播放就可见
+                monthlyListeners = monthlyListenersService.getMonthlyListeners(artist.getId());
             }
         }
 
         // 8. 组装返回
-        return new ProfileVO(
+        ProfileVO vo = new ProfileVO(
                 user.getNickName(),
                 user.getEmail(),
                 user.getProfilePic(),
@@ -101,6 +176,10 @@ public class ProfileServiceiml implements ProfileService {
                 artistId,
                 artistSongs
         );
+
+        // 写入缓存
+        cacheService.set(cacheKey, vo);
+        return vo;
     }
 
     @Override
@@ -161,36 +240,9 @@ public class ProfileServiceiml implements ProfileService {
     }
 
     /**
-     * 复制用户头像文件到 artists 目录，返回 artists 的 URL
-     * static/datas/profilePic/xxx.jpg → static/datas/profilePic/artists/xxx.jpg
+     * 复制用户头像到艺术家目录（OSS 上复制，旧本地路径保持兼容）
      */
     private String copyProfilePicToArtists(String profilePic) {
-        if (profilePic == null || profilePic.isBlank()) return null;
-        if (profilePic.contains("/profilePic/artists/")) return profilePic;
-
-        try {
-            // 从 URL 路径解析出实际文件路径
-            String relativePath = profilePic.startsWith("/") ? profilePic.substring(1) : profilePic;
-            Path source = Paths.get("src/main/resources", relativePath);
-            if (!Files.exists(source)) {
-                // 尝试从绝对路径解析（WebConfig 映射的 file: 前缀路径）
-                source = Paths.get("D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources", relativePath);
-            }
-            if (!Files.exists(source)) {
-                return profilePic; // 源文件不存在，返回原路径
-            }
-
-            // 目标路径
-            String fileName = source.getFileName().toString();
-            Path targetDir = Paths.get("D:/javaedit/project/spotify/Spotify_remake/Spotify_Remake/src/main/resources/static/datas/profilePic/artists/");
-            Files.createDirectories(targetDir);
-            Path target = targetDir.resolve(fileName);
-            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-
-            return "/static/datas/profilePic/artists/" + fileName;
-        } catch (Exception e) {
-            // 复制失败则回退到原路径
-            return profilePic;
-        }
+        return FileUploadUtil.copyAvatarToArtistDir(profilePic);
     }
 }

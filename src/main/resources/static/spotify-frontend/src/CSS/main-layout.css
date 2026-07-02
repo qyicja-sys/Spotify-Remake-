@@ -1,4 +1,4 @@
-﻿* {
+* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -22,15 +22,18 @@ body {
   width: 8px;
   height: 8px;
 }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 4px;
 }
 *:hover::-webkit-scrollbar-thumb {
-  background: #555;
+  background: rgba(255,255,255,0.3);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #777;
+  background: rgba(255,255,255,0.5);
 }
 
 .container {
@@ -1003,7 +1006,7 @@ body {
   color: #b3b3b3;
 }
 .artist-albums-section {
-  margin-top: 40px;
+  
   padding-top: 24px;
   border-top: 1px solid rgba(255,255,255,0.08);
 }
@@ -1276,9 +1279,11 @@ body {
 .right {
   flex: 1;
   min-width: 400px;
-  background: linear-gradient(to bottom, #221616 0%, #121212 240px);
-  overflow-y: auto;
+  background: #121212;
+  overflow-x: hidden;
+  overflow-y: overlay;
   position: relative;
+  display: block;
 }
 
 .side-panel {
@@ -1623,18 +1628,58 @@ body {
 .side-panel-follow-btn {
   padding: 6px 20px;
   border-radius: 500px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   background: transparent;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
-  cursor: default;
+  cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
 
 .side-panel-follow-btn:hover {
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: #fff;
+  transform: scale(1.02);
+}
+
+.side-panel-follow-btn.followed {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.side-panel-follow-btn.followed:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #fff;
+}
+
+/* 艺人详情页关注按钮 */
+.artist-follow-btn {
+  padding: 6px 24px;
+  border-radius: 500px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.artist-follow-btn:hover {
+  border-color: #fff;
+  transform: scale(1.02);
+}
+
+.artist-follow-btn.followed {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.artist-follow-btn.followed:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #fff;
 }
 
 .right-header {
@@ -1661,6 +1706,14 @@ body {
 
 .right-content {
   padding: 8px 24px 24px 24px;
+}
+
+.right.home-gradient {
+  background: linear-gradient(to bottom, #221616 0%, #121212 400px);
+}
+
+.right::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .quick-grid {
@@ -1932,6 +1985,8 @@ body {
 }
 
 .footer {
+  position: relative;
+  z-index: 10000;
   height: 80px;
   padding: 0 16px;
   display: flex;
@@ -2189,40 +2244,42 @@ body {
   padding: 0;
   min-height: 100%;
   position: relative;
+  background-color: #121212;
+}
+
+.playlist-detail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, #121212 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.playlist-black-overlay {
+  position: absolute;
+  top: 280px; /* 24px padding-top + 232px cover height + 10px gap */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .playlist-bg-section {
   padding: 24px 24px 0 24px;
   position: relative;
-}
-
-.playlist-bg-blur {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 140px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(18, 18, 18, 0.85) 40%, #121212 100%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.playlist-bg-section::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 100px;
-  background: linear-gradient(to bottom, transparent 0%, #121212 100%);
-  pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 
 .playlist-content-section {
   position: relative;
   padding: 0 24px 24px 24px;
-  background: #121212;
+  z-index: 2;
 }
 
 .playlist-header {
@@ -2354,14 +2411,14 @@ body {
   display: flex;
   align-items: center;
   gap: 24px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   position: relative;
   z-index: 5;
 }
 
 .action-icon-btn {
   width: 32px;
-  height: 32px;
+  height: 100px;
   background: transparent;
   border: none;
   border-radius: 50%;
@@ -3110,23 +3167,36 @@ body.menu-open .panel.right {
   padding: 0;
   min-height: 100%;
   position: relative;
+  background-color: #121212;
+}
+
+.artist-detail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, #121212 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.artist-black-overlay {
+  position: absolute;
+  top: 280px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .artist-bg-section {
   padding: 24px 24px 0 24px;
   position: relative;
-}
-
-.artist-bg-section::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 100px;
-  background: linear-gradient(to bottom, transparent 0%, #121212 100%);
-  pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 
 .artist-header {
@@ -4708,7 +4778,10 @@ body.menu-open .panel.right {
 /* ===== Expand Now-Playing Overlay ===== */
 .expand-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 80px;
   z-index: 9999;
   background: #000;
   display: flex;
@@ -4727,7 +4800,7 @@ body.menu-open .panel.right {
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 80px 60px 140px;
+  padding: 80px 60px 60px;
 }
 
 .expand-header {
@@ -4841,42 +4914,53 @@ body.menu-open .panel.right {
 
 /* 右侧：动态歌词区域 */
 .expand-lyrics {
-  flex: 1;
   min-width: 0;
-  height: 100%;
-  max-height: 70vh;
+  width: 720px;
+  height: 600px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   overflow: hidden;
 }
 
 .lyrics-scroll {
-  flex: 1;
+  width: 720px;
+  height: 600px;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.15) transparent;
+  padding-top: 300px;
+  padding-bottom: 300px;
+  box-sizing: border-box;
   mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0,0,0,1) 15%,
-    rgba(0,0,0,1) 85%,
+    rgba(0,0,0,1) 3%,
+    rgba(0,0,0,1) 92%,
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0,0,0,1) 15%,
-    rgba(0,0,0,1) 85%,
+    rgba(0,0,0,1) 3%,
+    rgba(0,0,0,1) 92%,
     transparent 100%
   );
 }
 
 /* 上下留白，使当前歌词行能滚动到视图中央 */
-.lyrics-padding-top,
 .lyrics-padding-bottom {
-  height: 45%;
+  height: 40vh;
+}
+
+/* 注册 --reveal-pct 为可过渡百分比属性——逐字染色硬边界从左到右扫过 */
+@property --reveal-pct {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 0%;
 }
 
 .lyric-line {
@@ -4885,7 +4969,7 @@ body.menu-open .panel.right {
   color: rgba(255, 255, 255, 0.35);
   line-height: 1.6;
   transition: color 0.3s, font-size 0.3s, opacity 0.3s;
-  cursor: default;
+  cursor: pointer;
   text-align: left;
   white-space: pre-wrap;
   word-break: break-word;
@@ -4893,16 +4977,44 @@ body.menu-open .panel.right {
 
 /* 已播放过的歌词 */
 .lyric-passed {
-  color: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 /* 当前播放的歌词行（高亮） */
 .lyric-active {
-  color: #fff;
-  font-size: 26px;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
+
+/* 原文行 */
+.lyric-orig {
+  display: block;
+}
+
+/* 中文翻译行——比原文（20px）小 5px */
+.lyric-trans {
+  display: block;
+  font-size: 15px;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* 当前行原文：绿色→白色硬边界渐变 + CSS transition 逐字扫过 */
+.lyric-active .lyric-orig {
+  background-image: linear-gradient(to right, #1db954 var(--reveal-pct, 0%), #fff var(--reveal-pct, 0%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* transition 时长由 JS 根据当前行剩余时间动态设置 */
+  transition: --reveal-pct 0s linear;
+}
+
+/* 当前行翻译保持纯白色 */
+.lyric-active .lyric-trans {
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+}
+
 
 /* 歌词占位符（加载中/无歌词） */
 .lyrics-placeholder {
@@ -4955,6 +5067,299 @@ body.menu-open .panel.right {
 .expand-fade-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+/* Browse View */
+.browse-view {
+  padding: 24px 32px 48px 32px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.browse-header {
+  width: 100%;
+  max-width: calc(4 * 220px + 3 * 24px);
+  margin-top: 32px;
+  margin-bottom: 24px;
+}
+.browse-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+.browse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 220px));
+  gap: 24px;
+}
+.browse-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 5 / 3;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.browse-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.browse-card-title {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  line-height: 1.2;
+  max-width: 60%;
+  word-wrap: break-word;
+}
+.browse-card-img-wrap {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 110px;
+  height: 110px;
+  transform: rotate(25deg);
+  transform-origin: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.browse-card-img {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+.browse-card-img-placeholder {
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+}
+@media (max-width: 900px) {
+  .browse-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .browse-card-img-wrap {
+    width: 90px;
+    height: 90px;
+  }
+}
+@media (max-width: 600px) {
+  .browse-view {
+    padding: 16px;
+  }
+  .browse-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .browse-card-img-wrap {
+    width: 70px;
+    height: 70px;
+  }
+  .browse-card-title {
+    font-size: 16px;
+  }
+}
+
+/* Browse Detail View */
+.browse-detail-view {
+  position: relative;
+  min-height: 100%;
+  overflow-y: auto;
+  background-color: #121212;
+}
+
+.browse-detail-view::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, #121212 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.browse-black-overlay {
+  position: absolute;
+  top: 330px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.browse-detail-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px 32px 48px 32px;
+  margin-top: -40px;
+  
+}
+.browse-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  justify-content: center;
+  margin-bottom: 16px;
+  transition: background 0.2s;
+}
+.browse-back-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+.browse-back-btn span {
+  display: none;
+}
+.browse-detail-header {
+  margin-bottom: 32px;
+}
+.browse-detail-title {
+  font-size: 96px;
+  font-weight: 900;
+  line-height: 3.5;
+  color: #fff;
+  margin: 0;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.browse-detail-section {
+  margin-bottom: 32px;
+}
+.browse-detail-section-title {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 16px 0;
+}
+.browse-detail-grid {
+  display: flex;
+  gap: 20px;
+}
+.browse-detail-card {
+  width: 200px;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 16px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.browse-detail-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.browse-detail-card:hover .browse-detail-card-img {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.browse-detail-card-img {
+  width: 180px;
+  height: 180px;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.2s;
+}
+/* Global top-50 image card overrides */
+.browse-detail-card-img-wrap,
+.browse-detail-card-img,
+.browse-detail-card-play-btn,
+.browse-detail-card-info {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+.browse-detail-card-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  background: #282828;
+}
+.browse-detail-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.browse-detail-card-play-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1ed760;
+  color: #000;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+}
+.browse-detail-card:hover .browse-detail-card-play-btn,
+.browse-detail-card:active .browse-detail-card-play-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+.browse-detail-card-play-btn:hover {
+  background: #1fdf64;
+  transform: scale(1.04);
+}
+.browse-detail-card-play-btn:active {
+  background: #1db954;
+  transform: scale(0.98);
+}
+.browse-detail-card-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+.browse-detail-card-info {
+  padding: 8px 0;
+}
+.browse-detail-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.browse-detail-card-desc {
+  font-size: 12px;
+  color: #b3b3b3;
+  line-height: 1.4;
 }
 
 

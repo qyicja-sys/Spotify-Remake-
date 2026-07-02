@@ -6,7 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 
 /**
- * Redis 手动序列化/反序列化工���类
+ * Redis 手动序列化/反序列化工具类
  * 使用 Jackson 将对象转为 JSON 字符串存入 Redis，取出时手动反序列化回对象。
  * 配合 StringRedisTemplate 或 RedisTemplate<String, String> 使用。
  */
